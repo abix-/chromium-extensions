@@ -48,11 +48,21 @@
   // .join(",") at document_start; reading at call time means the
   // install-time race between content.js and mainworld.js is moot
   // by the time any page script invokes the spoofed API.
+  //
+  // Uses comma-split exact-match (not substring) so kinds that are
+  // prefixes of one another (e.g. a hypothetical "audio" vs
+  // "audio-full") don't cross-trigger. Matches the splitting that
+  // `datasetFilters` already does for hushNeuter / hushSilence.
   function hasSpoofTag(tag) {
     try {
       const el = document.documentElement;
       const v = el && el.dataset && el.dataset.hushSpoof;
-      return !!(v && v.indexOf(tag) >= 0);
+      if (!v) return false;
+      const parts = String(v).split(",");
+      for (let i = 0; i < parts.length; i++) {
+        if (parts[i].trim() === tag) return true;
+      }
+      return false;
     } catch (e) { return false; }
   }
 
