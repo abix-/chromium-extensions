@@ -14,8 +14,6 @@
 //! needs mutable access. SW cold-wake wipes this state - the hydrate
 //! path on the onStartup branch restores it from `chrome.storage.session`.
 
-#![allow(clippy::too_many_arguments)]
-
 use crate::canon::pattern_keyword;
 use crate::compute::compute_suggestions as rust_compute_suggestions;
 use crate::types::{

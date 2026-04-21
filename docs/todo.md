@@ -219,13 +219,14 @@ export a single flat-config array, drop the `parserOptions`
 style that's now rolled into per-rule configs. 20-30 minutes
 by the [eslint migration guide](https://eslint.org/docs/latest/use/configure/migration-guide).
 
-### Narrow `#![allow(clippy::too_many_arguments)]` at `hush/src/background.rs:17`
+### (closed 2026-04-21) Narrow `#![allow(clippy::too_many_arguments)]`
 
-Module-wide blanket allow. Every function the lint would flag
-now gets a permanent pass, and the smell it was pointing at
-vanishes from the signal. Either fix the offending signatures
-or narrow the attribute to the specific function(s) that
-trigger it, with a one-line comment explaining why.
+Simply deleted it. Turned out no function in `background.rs`
+currently trips `too_many_arguments`, so the blanket allow was
+dead code - a leftover from an earlier refactor. `cargo clippy
+--lib` now reports zero `too_many_arguments` warnings. The one
+remaining function-scoped `#[allow(clippy::too_many_arguments)]`
+at `detectors.rs:751` is narrow and documented, fine as-is.
 
 ### (closed 2026-04-21) Unify `LIVE_CLOSURES` types
 
