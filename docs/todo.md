@@ -97,23 +97,31 @@ but not yet implemented.
 
 ## P1 - hard infrastructure gaps
 
-### Schema-version everything in `chrome.storage.local`
+### (substantially done 2026-04-21) Schema-version `chrome.storage.local`
 
-> Review: *"Day 1 of a schema migration, you beg for a version
-> number. Stamp it now."*
+Deferred the per-value envelope format (would touch ~14
+read/write sites across JS + Rust, mostly speculative). Shipped
+the minimum-viable anchor instead:
 
-Wrap every stored value:
+- Renamed `migrate_config.mjs` -> `migrate_storage.mjs` (old
+  filename is now a re-export shim). Explicit that the schema
+  gate governs the whole storage namespace, not just `config`.
+- Bumped `CURRENT_SCHEMA_VERSION` from 2 to 3. v2 -> v3 is a
+  version-bump only (no data changes) - the anchor future
+  migrations key off when `options` or `allowlist` next needs
+  reshaping.
+- Migrator is now a CHAIN: each `migrateVN_VN1(storage, ...)`
+  step writes its data + new version atomically. Per-step
+  atomicity preserved even under mid-chain crashes (new test
+  `mid-chain crash after v1->v2 still advances version`).
+- Return type grew `{ fromVersion, toVersion }` for
+  observability. `background.js` now logs the jump explicitly.
+- 14 migrate_config tests (was 11).
 
-```json
-{
-  "__hush_schema_version": 1,
-  "data": { ... }
-}
-```
-
-Read path checks the version and migrates if old. Write path
-always sets current. Without this, the first breaking schema
-change means a stop-the-world parse-and-guess job.
+When a real breaking change lands for options or allowlist, add
+a `migrateV3_V4` function and bump CURRENT. Envelope wrapping
+can be introduced per-key at that time if the change warrants
+it. No preemptive churn.
 
 ### (substantially done 2026-04-21) Tests on `hush/mainworld.js`
 

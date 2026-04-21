@@ -53,7 +53,10 @@ test("migrator is a no-op when already at CURRENT_SCHEMA_VERSION", async () => {
     config: { "example.com": { block: [{ value: "||ads" }] } },
   });
   const result = await migrateConfigSchema(storage);
-  assert.deepStrictEqual(result, { skipped: true, converted: 0 });
+  assert.strictEqual(result.skipped, true);
+  assert.strictEqual(result.converted, 0);
+  assert.strictEqual(result.fromVersion, CURRENT_SCHEMA_VERSION);
+  assert.strictEqual(result.toVersion, CURRENT_SCHEMA_VERSION);
   assert.strictEqual(storage._setCount(), 0, "no storage write when already current");
 });
 
@@ -72,7 +75,8 @@ test("idempotent: run twice, second run is a no-op", async () => {
   );
 
   const r2 = await migrateConfigSchema(storage);
-  assert.deepStrictEqual(r2, { skipped: true, converted: 0 }, "second run skipped");
+  assert.strictEqual(r2.skipped, true, "second run skipped");
+  assert.strictEqual(r2.converted, 0);
   assert.strictEqual(
     storage._setCount(),
     writesAfterFirst,
@@ -88,7 +92,9 @@ test("idempotent: run twice, second run is a no-op", async () => {
 test("empty config gets only the version stamp", async () => {
   const storage = makeStorage({});
   const result = await migrateConfigSchema(storage);
-  assert.deepStrictEqual(result, { skipped: false, converted: 0 });
+  assert.strictEqual(result.skipped, false);
+  assert.strictEqual(result.converted, 0);
+  assert.strictEqual(result.toVersion, CURRENT_SCHEMA_VERSION);
   assert.strictEqual(
     storage._store.get("configSchemaVersion"),
     CURRENT_SCHEMA_VERSION
@@ -99,7 +105,9 @@ test("empty config gets only the version stamp", async () => {
 test("non-object config gets only the version stamp", async () => {
   const storage = makeStorage({ config: "not an object" });
   const result = await migrateConfigSchema(storage);
-  assert.deepStrictEqual(result, { skipped: false, converted: 0 });
+  assert.strictEqual(result.skipped, false);
+  assert.strictEqual(result.converted, 0);
+  assert.strictEqual(result.toVersion, CURRENT_SCHEMA_VERSION);
   assert.strictEqual(
     storage._store.get("configSchemaVersion"),
     CURRENT_SCHEMA_VERSION
@@ -194,18 +202,40 @@ test("skips non-object site entries without crashing", async () => {
   assert.strictEqual(migrated["null.com"], undefined);
 });
 
-test("writes both config and configSchemaVersion in a single set() call (atomic)", async () => {
-  // The whole point of the single-set-call contract: a crash
-  // between two separate writes would leave the version stamped
-  // without the migrated payload. Verify one write.
+test("each migration step writes its payload + version atomically", async () => {
+  // Per-step atomicity. The migrator chains v1->v2 (rule-entry
+  // reshape) and v2->v3 (version-bump anchor). Each step writes
+  // its transformed data AND the new version stamp in a single
+  // set() call, so a crash between steps leaves the
+  // last-completed version correctly paired with its data.
+  // v0 -> v3 takes 2 set() calls (one per step).
   const storage = makeStorage({
     config: { "example.com": { block: ["||x"] } },
   });
   await migrateConfigSchema(storage);
   assert.strictEqual(
     storage._setCount(),
+    2,
+    "two set() calls for v0 -> v3 (v1->v2 reshape, v2->v3 bump)"
+  );
+});
+
+test("fresh v2 install only runs the v2 -> v3 step (one set)", async () => {
+  // Installs that are already at v2 (bare schema stamp) only
+  // need the version-bump step to reach v3.
+  const storage = makeStorage({
+    configSchemaVersion: 2,
+    config: { "example.com": { block: [{ value: "||x" }] } },
+  });
+  await migrateConfigSchema(storage);
+  assert.strictEqual(
+    storage._setCount(),
     1,
-    "exactly one set() call for migration"
+    "one set() call for v2 -> v3 bump"
+  );
+  assert.strictEqual(
+    storage._store.get("configSchemaVersion"),
+    CURRENT_SCHEMA_VERSION
   );
 });
 
@@ -262,4 +292,57 @@ test("converts null / undefined / number rule entries to stringified fallback", 
   // `converted` counts only string->object conversions; primitives
   // don't count.
   assert.strictEqual(result.converted, 0);
+});
+
+test("reports fromVersion and toVersion for observability", async () => {
+  // v0 -> v3 chain: both legs report in the summary.
+  const storage = makeStorage({
+    config: { "example.com": { block: [{ value: "||x" }] } },
+  });
+  const r1 = await migrateConfigSchema(storage);
+  assert.strictEqual(r1.fromVersion, 0);
+  assert.strictEqual(r1.toVersion, 3);
+
+  // Already current: fromVersion == toVersion == CURRENT.
+  const storage2 = makeStorage({
+    configSchemaVersion: CURRENT_SCHEMA_VERSION,
+    config: { "example.com": { block: [{ value: "||x" }] } },
+  });
+  const r2 = await migrateConfigSchema(storage2);
+  assert.strictEqual(r2.fromVersion, CURRENT_SCHEMA_VERSION);
+  assert.strictEqual(r2.toVersion, CURRENT_SCHEMA_VERSION);
+});
+
+test("mid-chain crash after v1->v2 still advances version, v2->v3 completes next wake", async () => {
+  // Simulate a crash between the v1->v2 set and the v2->v3 set.
+  // crashOnNthSet: 2 aborts the SECOND set call (the v2->v3 bump)
+  // after v1->v2 has already stamped version 2. Next wake picks
+  // up at v2 and runs only the v2->v3 step.
+  const storage = makeStorage(
+    { config: { "example.com": { block: ["||x"] } } },
+    { crashOnNthSet: 2 }
+  );
+
+  await assert.rejects(
+    () => migrateConfigSchema(storage),
+    /simulated storage crash/
+  );
+
+  // v1->v2 landed atomically: version is 2 and config is reshaped.
+  assert.strictEqual(storage._store.get("configSchemaVersion"), 2);
+  assert.deepStrictEqual(
+    storage._store.get("config")["example.com"].block,
+    [{ value: "||x" }],
+    "v1->v2 reshape preserved"
+  );
+
+  // Next wake: picks up from v2, runs only v2->v3.
+  const r2 = await migrateConfigSchema(storage);
+  assert.strictEqual(r2.fromVersion, 2);
+  assert.strictEqual(r2.toVersion, 3);
+  assert.strictEqual(r2.converted, 0, "v1->v2 already ran last wake");
+  assert.strictEqual(
+    storage._store.get("configSchemaVersion"),
+    CURRENT_SCHEMA_VERSION
+  );
 });
