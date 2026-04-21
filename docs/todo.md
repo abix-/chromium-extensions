@@ -102,21 +102,25 @@ Read path checks the version and migrates if old. Write path
 always sets current. Without this, the first breaking schema
 change means a stop-the-world parse-and-guess job.
 
-### Tests on `hush/mainworld.js`
+### (substantially done 2026-04-21) Tests on `hush/mainworld.js`
 
-913 LOC of security-sensitive prototype-patching —
-`fetch`/`XHR`/`sendBeacon`/`addEventListener`/`Clipboard.readText`/
-`Bluetooth.requestDevice`/navigator getters/canvas/WebGL/audio.
-Zero tests.
+Shipped: shared `test/_harness.mjs` (vm-context builder with every
+Web API stub mainworld needs) plus three test files:
+- `emit_contract.test.mjs` (18 tests) - every emit() call site has
+  its payload shape locked including variant-specific fields
+  (hotParam, font, eventType, vendors, param).
+- `kill_switch.test.mjs` (13 tests) - all six always-on spoof
+  kinds (sendbeacon, clipboard-read, bluetooth, usb, hid, serial)
+  verified including dedup, pass-through, and the hasSpoofTag
+  exact-match regression.
+- `fingerprint_spoof.test.mjs` (11 tests) - the four per-site
+  fingerprint spoofs (webgl-unmasked, canvas, audio, font-enum)
+  verified including constant-value invariants and
+  TextMetrics-shape completeness.
 
-Minimum viable harness:
-- Node + jsdom (or similar) simulated Window + document.
-- Test hook installation (prototype is patched).
-- Test call-through (original behavior preserved).
-- Test emit payload shape (kind, method, stack).
-- Test spoof dedup via `hushSpoofEmitted` Set.
-- Test every spoof branch (canvas / audio / font-enum /
-  webgl-unmasked).
+Remaining gaps (follow-up P2): neuter / silence origin-match
+tests (matchesHostPattern wildcards, per-vendor behavior),
+replay-global poll, invisible-canvas-draw detector.
 
 ### Tests on `hush/src/background.rs` handlers
 
@@ -242,20 +246,23 @@ Also document the disposal model in a comment next to each
 `static`: "service-worker death is the only reaper; this grows
 unbounded until SW is killed, which Chrome does routinely."
 
-### `migrateConfigSchema` idempotence + crash-recovery test
+### (done 2026-04-21) `migrateConfigSchema` idempotence + crash-recovery test
 
-`hush/background.js:44-72` runs on every service-worker wake.
-No test proves running it twice leaves the config byte-
-identical, and no test proves recovery when the SW is killed
-between the two storage writes at `:70` (payload writes
-`config + configSchemaVersion` in one call - good - but no
-test asserts that).
-
-Tests needed:
-- Run migrator twice on a fixture starting at schema 0, assert
-  second run is a no-op.
-- Start at schema 0, run migrator, simulate storage failure,
-  re-run, assert recovery without corruption.
+Shipped: extracted migrator from `background.js` into
+`hush/migrate_config.mjs` so it's testable against a mock storage.
+11 tests in `test/migrate_config.test.mjs` cover:
+- no-op when already at CURRENT_SCHEMA_VERSION
+- idempotent: run twice, second is a no-op with zero writes
+- empty / non-object config: version stamp only
+- bare-string -> {value} conversion
+- existing object entries preserved (metadata survives)
+- missing action buckets filled with empty arrays
+- malformed site entries dropped without crashing
+- atomicity: both keys in one set() call
+- crash recovery: simulated storage failure on write leaves
+  storage untouched, next wake retries and completes
+- robustness: null / undefined / primitive rule entries don't
+  throw
 
 ### (closed 2026-04-21) Move YouTube selectors to JSON
 
