@@ -10,6 +10,7 @@
 
 mod allowlist;
 mod background;
+mod bg_logic;
 mod canon;
 mod chrome_bridge;
 mod compute;

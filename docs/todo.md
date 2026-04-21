@@ -143,14 +143,38 @@ Remaining gaps (follow-up P2): neuter / silence origin-match
 tests (matchesHostPattern wildcards, per-vendor behavior),
 replay-global poll, invisible-canvas-draw detector.
 
-### Tests on `hush/src/background.rs` handlers
+### (substantially done 2026-04-21) Tests on `hush/src/background.rs` handlers
 
-2499 LOC of service-worker logic. Zero unit coverage on DNR
-sync, handler dispatch, or persistence. Use
-`wasm-bindgen-test` + the existing `BackgroundState` + mock JS
-values via `serde_wasm_bindgen`. Target the hot paths:
-`handle_stats`, `do_sync_dynamic_rules`,
-`push_firewall_event`, `schedule_persist_stats`.
+Deferred the wasm-bindgen-test + headless-Chrome harness
+approach (multi-hour infra work, mostly tests JS-bridge
+marshalling). Shipped instead: extracted the pure-function
+state-mutation cores from the handlers into a new
+`src/bg_logic.rs` module and tested those directly with plain
+`#[test]`. Same effective coverage on the logic that matters,
+zero wasm-bindgen-test dependency.
+
+Extracted + tested (17 new tests):
+- `push_capped<T>(deque, item, max)` - the FIFO helper every
+  capped VecDeque in the crate now funnels through
+  (`firewall_log`, `bootstrap_errors`, ...). One test covers
+  cap behavior; regressions in any FIFO become one test
+  failure instead of many.
+- `apply_dismiss_suggestion(state, key)` - dismiss action's
+  state mutation. Idempotent on already-dismissed keys, safe
+  on empty-key no-op, preserves siblings.
+- `apply_allowlist_add(allowlist, key)` - allowlist-add's
+  state mutation. Idempotent, preserves iframes / overlays.
+- `drop_suggestion_across_tabs(iter, key)` - after an
+  accepted-allow, clears matching suggestions across every
+  tab and returns only the tab_ids that actually changed so
+  the caller doesn't fire spurious badge updates.
+- `union_broken_selectors(iter)` - the options-editor
+  health-indicator aggregator.
+
+Still deferred (needs headless Chrome): the JS-bridge layer
+in each handler (parsing msg/sender, Reflect-chain
+responses). Worth adding when a bridge bug surfaces, not
+before.
 
 ### (done 2026-04-21) Ship the three Hush seed profiles
 

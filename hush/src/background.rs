@@ -235,16 +235,17 @@ fn log_error(msg: &str) {
 fn record_bootstrap_error(phase: &str, err_msg: String) {
     let full = format!("{phase} failed: {err_msg}");
     log_error(&full);
+    let entry = BootstrapError {
+        t: iso_now(),
+        phase: phase.to_string(),
+        msg: err_msg,
+    };
     STATE.with(|s| {
-        let mut state = s.borrow_mut();
-        state.bootstrap_errors.push_back(BootstrapError {
-            t: iso_now(),
-            phase: phase.to_string(),
-            msg: err_msg,
-        });
-        while state.bootstrap_errors.len() > MAX_BOOTSTRAP_ERRORS {
-            state.bootstrap_errors.pop_front();
-        }
+        crate::bg_logic::push_capped(
+            &mut s.borrow_mut().bootstrap_errors,
+            entry,
+            MAX_BOOTSTRAP_ERRORS,
+        );
     });
 }
 
@@ -703,11 +704,7 @@ fn get_stats_mut<R>(tab_id: i32, f: impl FnOnce(&mut TabStatsEntry) -> R) -> R {
 fn push_firewall_event(tab_id: i32, mut event: FirewallEvent) {
     event.tab_id = tab_id;
     STATE.with(|s| {
-        let mut st = s.borrow_mut();
-        st.firewall_log.push_back(event);
-        while st.firewall_log.len() > MAX_FIREWALL_EVENTS {
-            st.firewall_log.pop_front();
-        }
+        crate::bg_logic::push_capped(&mut s.borrow_mut().firewall_log, event, MAX_FIREWALL_EVENTS);
     });
     schedule_persist_firewall_log();
 }
@@ -1917,35 +1914,11 @@ fn handle_get_all_broken_selectors(send_response: &JsValue) {
     // are invalid CSS regardless of which tab reported them, so
     // the union is the right aggregation for the options-editor
     // health indicator.
-    let mut remove: Vec<String> = Vec::new();
-    let mut hide: Vec<String> = Vec::new();
-    let mut allow: Vec<String> = Vec::new();
-    STATE.with(|s| {
+    let broken = STATE.with(|s| {
         let st = s.borrow();
-        for entry in st.tab_stats.values() {
-            for sel in &entry.broken_selectors.remove {
-                if !remove.contains(sel) {
-                    remove.push(sel.clone());
-                }
-            }
-            for sel in &entry.broken_selectors.hide {
-                if !hide.contains(sel) {
-                    hide.push(sel.clone());
-                }
-            }
-            for sel in &entry.broken_selectors.allow {
-                if !allow.contains(sel) {
-                    allow.push(sel.clone());
-                }
-            }
-        }
+        crate::bg_logic::union_broken_selectors(st.tab_stats.values().map(|e| &e.broken_selectors))
     });
     let reply = Object::new();
-    let broken = crate::types::BrokenSelectors {
-        remove,
-        hide,
-        allow,
-    };
     if let Ok(v) = crate::chrome_bridge::to_js(&broken) {
         let _ = Reflect::set(&reply, &JsValue::from_str("broken"), &v);
     }
@@ -2211,9 +2184,7 @@ fn handle_allowlist_add_suggestion(msg: &JsValue, send_response: JsValue) {
                 al = parsed;
             }
         }
-        if !al.suggestions.iter().any(|k| k == &key) {
-            al.suggestions.push(key.clone());
-        }
+        crate::bg_logic::apply_allowlist_add(&mut al, &key);
         if let Ok(v) = crate::chrome_bridge::to_js(&al) {
             if let Err(e) = storage_local_set_one(ALLOWLIST_KEY, &v).await {
                 log_error(&format!("allowlist-add set failed: {:?}", e));
@@ -2222,16 +2193,10 @@ fn handle_allowlist_add_suggestion(msg: &JsValue, send_response: JsValue) {
         STATE.with(|s| s.borrow_mut().allowlist_cache = al);
         // Drop from every tab's suggestions + refresh badges.
         let mutated: Vec<i32> = STATE.with(|s| {
-            let mut st = s.borrow_mut();
-            let mut out = Vec::new();
-            for (tab_id, b) in st.tab_behavior.iter_mut() {
-                let before = b.suggestions.len();
-                b.suggestions.retain(|s| s.key != key);
-                if b.suggestions.len() != before {
-                    out.push(*tab_id);
-                }
-            }
-            out
+            crate::bg_logic::drop_suggestion_across_tabs(
+                s.borrow_mut().tab_behavior.iter_mut(),
+                &key,
+            )
         });
         for id in mutated {
             update_badge(id);
@@ -2256,10 +2221,7 @@ fn handle_dismiss_suggestion(msg: &JsValue, sender: &JsValue, send_response: &Js
         return;
     };
     get_behavior_mut(tab_id, |state| {
-        if !state.dismissed.iter().any(|k| k == &key) {
-            state.dismissed.push(key.clone());
-        }
-        state.suggestions.retain(|s| s.key != key);
+        crate::bg_logic::apply_dismiss_suggestion(state, &key);
     });
     schedule_persist_behavior();
     update_badge(tab_id);
