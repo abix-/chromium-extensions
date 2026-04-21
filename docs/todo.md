@@ -257,18 +257,6 @@ Tests needed:
 - Start at schema 0, run migrator, simulate storage failure,
   re-run, assert recovery without corruption.
 
-### Replace the `zoom-extension` 1 Hz poll
-
-`zoom-extension/content.js:200`:
-
-```js
-setInterval(() => { ... }, 1000);
-```
-
-100 users × daily YouTube × 10 years = hundreds of billions of
-wasted queries. Switch to a `MutationObserver` on the player
-container that wakes on `<video>` element insertion.
-
 ### Move YouTube selectors to a JSON config file
 
 `zoom-extension/content.css` pins `.ytp-fullscreen-grid*` class

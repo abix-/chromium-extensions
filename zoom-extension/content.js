@@ -195,16 +195,33 @@
     if (video) applyZoom(video, currentOriginX, currentOriginY);
   });
 
-  // In case YouTube (or a similar site) loads a new video (AJAX navigation),
-  // poll for the video element and reapply the zoom using the stored panning values.
-  setInterval(() => {
-    const video = getVideoElement();
-    if (
-      video &&
-      (video.style.transform !== `scale(${scale})` ||
-       video.style.transformOrigin !== `${currentOriginX}% ${currentOriginY}%`)
-    ) {
-      applyZoom(video, currentOriginX, currentOriginY, false); // Pass false to avoid showing the badge
-    }    
-  }, 1000);
+  // React to new <video> elements becoming playable. YouTube (and
+  // other SPAs) AJAX-navigate between videos without a full page
+  // load; the new video fires `loadedmetadata` when its track is
+  // ready. Catch that event and re-apply the stored zoom - zero
+  // polling, zero DOM walks.
+  //
+  // `loadedmetadata` does not bubble, so the listener must be in
+  // the capture phase on document.
+  //
+  // Previous implementation polled `querySelector("video")` every
+  // second, which at ~100 users x daily YouTube x 10 years was
+  // hundreds of billions of needless DOM walks.
+  document.addEventListener(
+    "loadedmetadata",
+    (e) => {
+      const t = e.target;
+      if (!(t instanceof HTMLVideoElement)) return;
+      // No-op when the stored zoom is already the identity - avoids
+      // rewriting an unchanged transform string on every fresh video
+      // a user opens.
+      if (scale === 1 && currentOriginX === 50 && currentOriginY === 50) return;
+      const wantScale = `scale(${scale})`;
+      const wantOrigin = `${currentOriginX}% ${currentOriginY}%`;
+      if (t.style.transform !== wantScale || t.style.transformOrigin !== wantOrigin) {
+        applyZoom(t, currentOriginX, currentOriginY, false);
+      }
+    },
+    true
+  );
 })();
