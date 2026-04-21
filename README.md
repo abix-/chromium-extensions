@@ -31,6 +31,12 @@ Chrome / Brave / Edge (MV3) browser extensions by abix.
   Shift+Alt+mousewheel and keyboard shortcuts. Pure JS content
   script, no build step. Licensed GPL-3.
 
+## Cross-cutting priorities
+
+- **[docs/todo.md](docs/todo.md)** — P0 / P1 / P2 / P3 priorities
+  across all three extensions. Start here if you don't know
+  what to work on next.
+
 ## Repo layout
 
 Each extension is a self-contained directory at the repo root:
