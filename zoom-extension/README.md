@@ -10,11 +10,17 @@ mouse wheel to zoom in / out; move the mouse (still holding
 Shift+Alt) to pan. Current zoom percentage flashes in a badge
 top-right.
 
-**2. Block YouTube's scroll-to-preview on thumbnails.**  YouTube
-hijacks the mouse wheel when you hover over a thumbnail — instead
-of scrolling the page it scrubs a video preview. This extension
-intercepts that behavior so the wheel scrolls the page like
-normal, while preserving the zoom shortcut above.
+**2. Block YouTube's hover-preview on thumbnails.**  YouTube's
+"Inline Playback" feature auto-plays a muted video preview when
+the cursor lingers over a thumbnail. When you scroll the page,
+every thumbnail that passes under the cursor fires its own
+preview — noisy and disruptive. This extension CSS-hides the
+preview element (`ytd-video-preview` and friends) so thumbnails
+stay static and scrolling is quiet.
+
+Uses the same approach established uBlock Origin filters use:
+`display: none !important` on the preview custom element. No
+event interception, no race with YouTube's handlers.
 
 Toggle the preview-blocking in the extension's options page
 (`chrome://extensions/` → this extension → **Details** →

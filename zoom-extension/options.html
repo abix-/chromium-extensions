@@ -50,15 +50,17 @@
 
   <div class="row">
     <label>
-      <input type="checkbox" id="block-preview-scroll">
+      <input type="checkbox" id="block-hover-preview">
       <div>
-        <div class="title">Block YouTube's scroll-to-preview on thumbnails</div>
+        <div class="title">Block YouTube's hover preview on thumbnails</div>
         <div class="help">
-          YouTube uses the mouse wheel to scrub video previews when
-          you hover over a thumbnail. This overrides normal page
-          scrolling. Enable this to intercept the behavior so the
-          wheel scrolls the page as usual. Zoom via Shift+Alt still
-          works.
+          YouTube's <b>Inline Playback</b> feature auto-plays a
+          muted video preview when the cursor lingers on a
+          thumbnail. When you scroll the page, every thumbnail
+          that passes under the cursor fires its own preview.
+          Enable this to hide the preview element entirely —
+          thumbnails stay static and scrolling is quiet. Zoom via
+          Shift+Alt still works.
         </div>
       </div>
     </label>

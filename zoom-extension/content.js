@@ -98,62 +98,74 @@
   document.addEventListener("mousemove", handleMouseMove, false);
 
   // -----------------------------------------------------------------
-  // YouTube scroll-to-preview blocker (per-user setting).
+  // YouTube hover-preview blocker (per-user setting).
   //
-  // YouTube attaches a wheel handler to thumbnail custom elements
-  // (ytd-rich-item-renderer, ytd-video-renderer, etc.) that hijacks
-  // mousewheel scrubbing to preview different frames of the video
-  // on hover. Users who just want to scroll the page find this
-  // disruptive.
+  // YouTube's "Inline Playback" feature auto-plays a muted video
+  // preview when the cursor lingers over a thumbnail. The feature
+  // is hover-triggered, not wheel-triggered — what users
+  // experience as "scrolling shows previews" is actually the
+  // cursor passing over new thumbnails as the page scrolls.
   //
-  // The fix: a capture-phase wheel listener fires BEFORE YouTube's
-  // bubble-phase one. When the event target is inside a thumbnail
-  // and the user isn't holding Shift+Alt (our zoom modifier), we
-  // stopImmediatePropagation. That suppresses YouTube's handler
-  // while leaving the browser default (page scroll) intact —
-  // stopPropagation does not cancel the default action.
+  // The reliable fix (same one established uBlock Origin filter
+  // lists use) is CSS: set `display: none !important` on the
+  // preview custom element so YouTube can insert it but it never
+  // renders and never starts the video. No event interception, no
+  // race with YouTube's own wheel handlers.
   //
-  // Controlled by chrome.storage.sync.blockPreviewScroll (default:
-  // true). Changes apply live via storage.onChanged.
+  // Canonical filter per the adblock community:
+  //   youtube.com###preview > ytd-video-preview.style-scope
+  //     .ytd-rich-grid-renderer
+  // We broaden the selector set to catch preview elements on the
+  // watch-page sidebar, search results, subscriptions grid, and
+  // newer `yt-*-view-model` designs.
+  //
+  // Controlled by `chrome.storage.sync.blockHoverPreview` (default
+  // true). Changes apply live via `storage.onChanged` by
+  // inserting/removing the <style> element.
   // -----------------------------------------------------------------
-  const THUMBNAIL_SELECTOR = [
-    "ytd-thumbnail",
-    "ytd-rich-item-renderer",
-    "ytd-rich-grid-media",
-    "ytd-video-renderer",
-    "ytd-compact-video-renderer",
-    "ytd-grid-video-renderer",
-    "ytd-playlist-panel-video-renderer",
-    "yt-lockup-view-model",
-    "yt-collection-thumbnail-view-model",
-    "ytm-shorts-lockup-view-model-v2"
-  ].join(",");
+  const HOVER_PREVIEW_CSS = `
+    ytd-video-preview,
+    ytd-thumbnail-overlay-loading-preview-renderer,
+    #preview > ytd-video-preview,
+    .ytd-video-preview,
+    .ytd-thumbnail-overlay-loading-preview-renderer,
+    yt-video-preview-view-model,
+    yt-inline-video-player,
+    .ytmPlayerFullBleedContainer [data-purpose="inline-preview"] {
+      display: none !important;
+    }
+  `;
+  const STYLE_ID = "hush-zoom-hover-preview-blocker";
 
-  let blockPreviewScroll = true;
+  function applyPreviewBlocker(enabled) {
+    const existing = document.getElementById(STYLE_ID);
+    if (enabled) {
+      if (existing) return;
+      const style = document.createElement("style");
+      style.id = STYLE_ID;
+      style.textContent = HOVER_PREVIEW_CSS;
+      // documentElement is available at document_end; fallback to
+      // body just in case.
+      (document.documentElement || document.body || document.head).appendChild(style);
+    } else if (existing) {
+      existing.remove();
+    }
+  }
+
   try {
-    chrome.storage.sync.get({ blockPreviewScroll: true }).then((s) => {
-      blockPreviewScroll = !!s.blockPreviewScroll;
+    chrome.storage.sync.get({ blockHoverPreview: true }).then((s) => {
+      applyPreviewBlocker(!!s.blockHoverPreview);
     });
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === "sync" && changes.blockPreviewScroll) {
-        blockPreviewScroll = !!changes.blockPreviewScroll.newValue;
+      if (area === "sync" && changes.blockHoverPreview) {
+        applyPreviewBlocker(!!changes.blockHoverPreview.newValue);
       }
     });
-  } catch (e) { /* extension context gone; leave default */ }
-
-  document.addEventListener("wheel", (e) => {
-    if (!blockPreviewScroll) return;
-    // Leave the event alone when the user is trying to zoom —
-    // the zoom handler above relies on seeing the wheel event.
-    if (e.shiftKey && e.altKey) return;
-    if (!e.target || typeof e.target.closest !== "function") return;
-    if (e.target.closest(THUMBNAIL_SELECTOR)) {
-      // Stops YouTube's bubble-phase handler from running. The
-      // default browser scroll still fires because we don't
-      // preventDefault.
-      e.stopImmediatePropagation();
-    }
-  }, { capture: true });
+  } catch (e) {
+    // Extension context gone; apply the default so users still
+    // benefit if the storage fetch fails.
+    applyPreviewBlocker(true);
+  }
  
   // Reapply zoom when full-screen mode changes.
   document.addEventListener("fullscreenchange", () => {

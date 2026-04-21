@@ -1,12 +1,12 @@
-// Single setting today: block YouTube's scroll-to-preview feature
-// on thumbnail elements. Default on — that's the behavior users
-// installing this extension typically want.
+// Single setting today: block YouTube's inline-playback
+// hover-preview on thumbnail elements. Default on — that's the
+// behavior users installing this extension typically want.
 const DEFAULTS = {
-  blockPreviewScroll: true
+  blockHoverPreview: true
 };
 
 const statusEl = document.getElementById("status");
-const checkbox = document.getElementById("block-preview-scroll");
+const checkbox = document.getElementById("block-hover-preview");
 
 function flashStatus(text) {
   statusEl.textContent = text;
@@ -17,12 +17,12 @@ function flashStatus(text) {
 }
 
 chrome.storage.sync.get(DEFAULTS).then((settings) => {
-  checkbox.checked = !!settings.blockPreviewScroll;
+  checkbox.checked = !!settings.blockHoverPreview;
 });
 
 checkbox.addEventListener("change", () => {
   chrome.storage.sync.set({
-    blockPreviewScroll: checkbox.checked
+    blockHoverPreview: checkbox.checked
   }).then(() => {
     flashStatus(checkbox.checked ? "Saved: blocking ON" : "Saved: blocking OFF");
   });
