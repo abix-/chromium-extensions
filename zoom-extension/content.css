@@ -1,35 +1,27 @@
 /*
-  Hides YouTube's fullscreen "more videos" grid and its children.
+  Hides YouTube's fullscreen "more videos" grid.
   Manifest-injected at document_start so the rules are live
-  before any YouTube script runs — no flash, no race. Wildcard
-  selectors match every class variant YouTube uses across old /
-  new layouts:
+  before any YouTube script runs.
 
-    .ytp-fullscreen-grid          (container)
-    .ytp-fullscreen-grid-main-content
-    .ytp-fullscreen-grid-stills-container
-    .ytp-fullscreen-grid-buttons-container
-    .ytp-fullerscreen-edu-button  (YouTube spells it
-                                   "fullerscreen" in newer UIs)
-    .ytp-fullerscreen-grid        (if YouTube renames later)
-    .ytp-modern-videowall-still   (individual video thumbnails
-                                   inside the grid)
+  EXACT class selectors only — wildcard `[class*="..."]` patterns
+  can accidentally match the player shell in newer YouTube
+  layouts (some ancestor classes include `fullscreen-grid` as a
+  substring), which results in a black fullscreen.
 
-  Gating pattern: default is HIDE. The user's options-page
-  toggle adds `html.hush-zoom-show-fullscreen-grid` to document
-  root when the block is disabled, and the `:not()` selector
-  matches only when that class is absent. Default-block means
-  the protection is active from document_start with zero JS
-  dependency (content.js runs at document_end).
+  Elements verified from YouTube's fullscreen DOM:
+    .ytp-fullscreen-grid                       (outer container)
+    .ytp-fullscreen-grid-main-content          (inner wrapper)
+    .ytp-fullscreen-grid-stills-container      (thumbnail grid)
+    .ytp-fullscreen-grid-buttons-container     (top button bar)
+
+  Gating: default HIDE. When the user's toggle is off, content.js
+  adds `html.hush-zoom-show-fullscreen-grid` and the :not()
+  selector no longer matches, restoring the grid.
 */
 
-html:not(.hush-zoom-show-fullscreen-grid) [class*="ytp-fullscreen-grid"],
-html:not(.hush-zoom-show-fullscreen-grid) [class*="ytp-fullerscreen-grid"],
-html:not(.hush-zoom-show-fullscreen-grid) .ytp-fullerscreen-edu-button,
-html:not(.hush-zoom-show-fullscreen-grid) button.ytp-fullerscreen-edu-button,
-html:not(.hush-zoom-show-fullscreen-grid) [class*="ytp-modern-videowall-still"] {
+html:not(.hush-zoom-show-fullscreen-grid) .ytp-fullscreen-grid,
+html:not(.hush-zoom-show-fullscreen-grid) .ytp-fullscreen-grid-main-content,
+html:not(.hush-zoom-show-fullscreen-grid) .ytp-fullscreen-grid-stills-container,
+html:not(.hush-zoom-show-fullscreen-grid) .ytp-fullscreen-grid-buttons-container {
   display: none !important;
-  opacity: 0 !important;
-  visibility: hidden !important;
-  pointer-events: none !important;
 }
