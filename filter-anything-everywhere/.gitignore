@@ -2,3 +2,5 @@
 build/*
 extension.zip
 node_modules
+# k3sc cargo-lock sentinel; leaks from commands run in this cwd
+.cargo-build.lock

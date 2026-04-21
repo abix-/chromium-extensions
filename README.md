@@ -21,7 +21,11 @@ Chrome / Brave / Edge (MV3) browser extensions by abix.
   universal keyword blocker for feeds, lists, and comment
   sections across every site. Fork of [Tommy Li's upstream
   project](https://github.com/tomlimike/filter-anything-everywhere);
-  carries the original MIT license. TypeScript + Rollup build.
+  carries the original MIT license. TypeScript + Rollup build;
+  after `npm run build` load unpacked from
+  `filter-anything-everywhere/build/extension/` (NOT the repo
+  directory — the root is the source tree, not the loadable
+  extension).
 
 - **[zoom-extension](zoom-extension/)** — YouTube zoom / pan via
   Shift+Alt+mousewheel and keyboard shortcuts. Pure JS content
