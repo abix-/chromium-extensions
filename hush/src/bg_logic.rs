@@ -314,7 +314,7 @@ mod tests {
     fn drop_across_tabs_empty_key_noop() {
         let mut state = BehaviorState::default();
         state.suggestions.push(mk_suggestion("x"));
-        let mut entries = vec![(1, state)];
+        let mut entries = [(1, state)];
         let iter = entries.iter_mut().map(|(k, v)| (&*k, v));
         assert!(drop_suggestion_across_tabs(iter, "").is_empty());
         assert_eq!(entries[0].1.suggestions.len(), 1);

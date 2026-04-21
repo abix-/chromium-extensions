@@ -250,12 +250,11 @@ impl<'a> DetectCtx<'a> {
         // applies to Block suggestions — spoof has no bearing on
         // DOM-selector (remove/hide) rules even if the detector
         // kind coincidentally lines up.
-        if layer == SuggestionLayer::Block {
-            if let Some(spoof_kind) = spoof_kind_for_signal(kind) {
-                if self.has_spoof(spoof_kind) {
-                    return true;
-                }
-            }
+        if layer == SuggestionLayer::Block
+            && let Some(spoof_kind) = spoof_kind_for_signal(kind)
+            && self.has_spoof(spoof_kind)
+        {
+            return true;
         }
         false
     }
@@ -328,10 +327,11 @@ where
     T: 'a + HasReporterFrame,
 {
     for item in items {
-        if let Some(f) = item.reporter_frame() {
-            if !f.is_empty() && f != hostname {
-                return Some(f.to_string());
-            }
+        if let Some(f) = item.reporter_frame()
+            && !f.is_empty()
+            && f != hostname
+        {
+            return Some(f.to_string());
         }
     }
     None
@@ -812,7 +812,7 @@ const ATTENTION_EVENT_NAMES: &[&str] = &[
 ];
 
 fn is_attention_event(t: &str) -> bool {
-    ATTENTION_EVENT_NAMES.iter().any(|n| *n == t)
+    ATTENTION_EVENT_NAMES.contains(&t)
 }
 
 struct RafWasteEntry {
@@ -872,37 +872,37 @@ fn summarize_js_calls(js_calls: &[JsCall]) -> JsCallSummary {
                 *hot_params_by_origin.entry(origin.clone()).or_insert(0) += 1;
             }
             "font-fp" => {
-                if let Some(font) = c.font.as_deref() {
-                    if !font.is_empty() {
-                        distinct_fonts_by_origin
-                            .entry(origin.clone())
-                            .or_default()
-                            .insert(font.to_string());
-                    }
+                if let Some(font) = c.font.as_deref()
+                    && !font.is_empty()
+                {
+                    distinct_fonts_by_origin
+                        .entry(origin.clone())
+                        .or_default()
+                        .insert(font.to_string());
                 }
             }
             "listener-added" => {
-                if let Some(t) = c.event_type.as_deref() {
-                    if !t.is_empty() {
-                        // Attention events (visibilitychange / focus /
-                        // blur / pagehide / pageshow / beforeunload)
-                        // feed the attention-tracking detector;
-                        // everything else feeds the interaction-
-                        // density replay-listener detector.
-                        let bucket = if is_attention_event(t) {
-                            &mut attention_types_by_origin
-                        } else {
-                            &mut listener_types_by_origin
-                        };
-                        let entry = bucket
-                            .entry(origin.clone())
-                            .or_insert_with(|| ListenerInfo {
-                                count: 0,
-                                types: Default::default(),
-                            });
-                        entry.count += 1;
-                        entry.types.insert(t.to_string());
-                    }
+                if let Some(t) = c.event_type.as_deref()
+                    && !t.is_empty()
+                {
+                    // Attention events (visibilitychange / focus /
+                    // blur / pagehide / pageshow / beforeunload)
+                    // feed the attention-tracking detector;
+                    // everything else feeds the interaction-
+                    // density replay-listener detector.
+                    let bucket = if is_attention_event(t) {
+                        &mut attention_types_by_origin
+                    } else {
+                        &mut listener_types_by_origin
+                    };
+                    let entry = bucket
+                        .entry(origin.clone())
+                        .or_insert_with(|| ListenerInfo {
+                            count: 0,
+                            types: Default::default(),
+                        });
+                    entry.count += 1;
+                    entry.types.insert(t.to_string());
                 }
             }
             "replay-global" => {
@@ -913,13 +913,13 @@ fn summarize_js_calls(js_calls: &[JsCall]) -> JsCallSummary {
                 }
             }
             "nav-fp" => {
-                if let Some(param) = c.param.as_deref() {
-                    if !param.is_empty() {
-                        nav_fp_params_by_origin
-                            .entry(origin.clone())
-                            .or_default()
-                            .insert(param.to_string());
-                    }
+                if let Some(param) = c.param.as_deref()
+                    && !param.is_empty()
+                {
+                    nav_fp_params_by_origin
+                        .entry(origin.clone())
+                        .or_default()
+                        .insert(param.to_string());
                 }
             }
             "canvas-draw" => {

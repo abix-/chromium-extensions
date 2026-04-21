@@ -47,8 +47,14 @@ use web_sys::{CustomEvent, CustomEventInit, Document};
 // `thread_local!` is the single-threaded-WASM answer to the usual
 // `OnceLock<Mutex<...>>` pattern - `Closure` is `!Send`, and WASM
 // never actually crosses threads, so the TLS cell is safe.
+//
+// The closure signature is fixed (all hooks use the same
+// `Fn(this, call)` shape); typing the vec keeps that invariant
+// visible.
+type HookClosure = Closure<dyn Fn(JsValue, JsValue)>;
+
 thread_local! {
-    static LIVE_CLOSURES: RefCell<Vec<Closure<dyn Fn(JsValue, JsValue)>>> =
+    static LIVE_CLOSURES: RefCell<Vec<HookClosure>> =
         const { RefCell::new(Vec::new()) };
 }
 
@@ -95,19 +101,18 @@ pub fn install_from_js(orig_map: JsValue, make_wrapper: &Function) -> Result<(),
     }
 
     // --- Drain the pre-WASM stub queue ----------------------------------
-    if let Some(window) = web_sys::window() {
-        if let Ok(q_val) = Reflect::get(&window, &JsValue::from_str("__hush_stub_q__")) {
-            if let Ok(arr) = q_val.dyn_into::<Array>() {
-                let len = arr.length();
-                for i in 0..len {
-                    let entry = arr.get(i);
-                    if let Err(e) = validate_and_dispatch(entry) {
-                        log_error(&format!("stub queue drain: {}", js_err_str(&e)));
-                    }
-                }
-                arr.set_length(0);
+    if let Some(window) = web_sys::window()
+        && let Ok(q_val) = Reflect::get(&window, &JsValue::from_str("__hush_stub_q__"))
+        && let Ok(arr) = q_val.dyn_into::<Array>()
+    {
+        let len = arr.length();
+        for i in 0..len {
+            let entry = arr.get(i);
+            if let Err(e) = validate_and_dispatch(entry) {
+                log_error(&format!("stub queue drain: {}", js_err_str(&e)));
             }
         }
+        arr.set_length(0);
     }
 
     Ok(())

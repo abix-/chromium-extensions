@@ -451,10 +451,10 @@ fn UnmatchedBanner(hostname: String) -> impl IntoView {
                     // Clear the existing Leptos tree by blanking the
                     // root, then re-run the bootstrap. Simpler than
                     // plumbing a refresh signal through every sub-tree.
-                    if let Some(document) = web_sys::window().and_then(|w| w.document()) {
-                        if let Some(root) = document.get_element_by_id("rust-popup-root") {
-                            root.set_inner_html("");
-                        }
+                    if let Some(document) = web_sys::window().and_then(|w| w.document())
+                        && let Some(root) = document.get_element_by_id("rust-popup-root")
+                    {
+                        root.set_inner_html("");
                     }
                     let _ = hush_popup_main().await;
                 }
@@ -505,13 +505,13 @@ fn FooterButtons(tab_id: Option<i32>, tab_url: String, hostname: String) -> impl
     };
 
     let on_reload = move |_| {
-        if let Some(tid) = tab_id {
-            if let Err(e) = chrome_bridge::reload_tab(tid) {
-                web_sys::console::error_1(&JsValue::from_str(&format!(
-                    "[Hush popup] reload_tab: {:?}",
-                    e
-                )));
-            }
+        if let Some(tid) = tab_id
+            && let Err(e) = chrome_bridge::reload_tab(tid)
+        {
+            web_sys::console::error_1(&JsValue::from_str(&format!(
+                "[Hush popup] reload_tab: {:?}",
+                e
+            )));
         }
     };
 
@@ -2070,20 +2070,20 @@ fn SuggestionsList(
     tab_id: Option<i32>,
 ) -> impl IntoView {
     // Refresh helper: re-fetch suggestions after any action.
-    let refresh = {
-        let suggestions = suggestions;
-        move || {
-            let Some(tab_id) = tab_id else { return };
-            spawn_local(async move {
-                match chrome_bridge::get_suggestions(tab_id).await {
-                    Ok(next) => suggestions.set(next),
-                    Err(e) => web_sys::console::error_1(&JsValue::from_str(&format!(
-                        "[Hush popup] get_suggestions failed: {:?}",
-                        e
-                    ))),
-                }
-            });
-        }
+    // `suggestions` is already an RwSignal (Copy); the move closure
+    // captures it by value so each call reaches back to the same
+    // reactive cell.
+    let refresh = move || {
+        let Some(tab_id) = tab_id else { return };
+        spawn_local(async move {
+            match chrome_bridge::get_suggestions(tab_id).await {
+                Ok(next) => suggestions.set(next),
+                Err(e) => web_sys::console::error_1(&JsValue::from_str(&format!(
+                    "[Hush popup] get_suggestions failed: {:?}",
+                    e
+                ))),
+            }
+        });
     };
 
     view! {
@@ -2104,7 +2104,6 @@ fn SuggestionsList(
                     }.into_any()
                 } else {
                     let rows: Vec<_> = list.into_iter().map(|s| {
-                        let refresh = refresh.clone();
                         view! {
                             <SuggestionRow
                                 suggestion=s
@@ -2179,13 +2178,13 @@ where
                     .await
                 {
                     Ok(()) => {
-                        if let Some(tid) = tab_id {
-                            if let Err(e) = chrome_bridge::reload_tab(tid) {
-                                web_sys::console::warn_1(&JsValue::from_str(&format!(
-                                    "[Hush popup] reload_tab: {:?}",
-                                    e
-                                )));
-                            }
+                        if let Some(tid) = tab_id
+                            && let Err(e) = chrome_bridge::reload_tab(tid)
+                        {
+                            web_sys::console::warn_1(&JsValue::from_str(&format!(
+                                "[Hush popup] reload_tab: {:?}",
+                                e
+                            )));
                         }
                     }
                     Err(e) => {

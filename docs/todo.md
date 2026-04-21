@@ -236,21 +236,19 @@ when P0 #1 lands).
 
 ## P2 - polish + coverage
 
-### Clippy lint cleanup so `-D warnings` can go green
+### (done 2026-04-21) Clippy lint cleanup, `-D warnings` enabled in CI
 
-`cargo clippy --all-targets -- -D warnings` currently reports
-36 errors across the crate:
-- `redundant_locals`, `clone_on_copy`, `collapsible_if` in
-  `ui_popup.rs` and `ui_options.rs`
-- `criterion::black_box` deprecation in
-  `benches/compute_suggestions.rs` (9 call sites; swap to
-  `std::hint::black_box`)
-- Scattered minor lints across the Rust sources
+`cargo clippy --all-targets -- -D warnings` now passes clean.
+Landed: 33 auto-fixable lints via `cargo clippy --fix`
+(collapsible_if, needless Ok/?, manual char comparison,
+clone-on-Copy, etc.), plus 4 manual fixes (complex Closure type
+-> `type HookClosure` alias in main_world.rs, redundant
+binding removals in ui_popup.rs, `criterion::black_box` ->
+`std::hint::black_box` in the bench, useless `vec!` in a
+bg_logic test).
 
-CI workflow (`.github/workflows/ci.yml`) intentionally skips
-the clippy step until these are cleaned. Once clean, re-enable
-`cargo clippy --all-targets -- -D warnings` in CI so new lints
-can't land silently.
+CI workflow now runs `cargo clippy --all-targets -- -D warnings`
+on every push/PR. New lints can't land silently.
 
 ### Migrate `filter-anything-everywhere` to eslint 10 flat-config
 

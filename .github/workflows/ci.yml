@@ -24,7 +24,7 @@ jobs:
         with:
           toolchain: "1.95"
           targets: wasm32-unknown-unknown
-          components: rustfmt
+          components: rustfmt, clippy
 
       - name: cache cargo
         uses: Swatinem/rust-cache@v2
@@ -34,10 +34,8 @@ jobs:
       - name: rustfmt
         run: cargo fmt --all -- --check
 
-      # clippy intentionally not gated yet: 36 pre-existing lints
-      # (redundant_locals, clone_on_copy, collapsible_if, deprecated
-      # criterion::black_box in benches, etc.) need cleanup before
-      # `-D warnings` can go green. Tracked as P2 in docs/todo.md.
+      - name: clippy
+        run: cargo clippy --all-targets -- -D warnings
 
       - name: unit tests
         run: cargo test --lib

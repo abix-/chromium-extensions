@@ -69,7 +69,7 @@ struct StatusMsg {
 /// `ok=false` renders red. No-op if the Leptos tree isn't mounted yet.
 #[wasm_bindgen(js_name = "setOptionsStatus")]
 pub fn set_options_status(text: String, ok: bool) {
-    if let Some(sig) = STATUS_HANDLE.with(|h| h.borrow().clone()) {
+    if let Some(sig) = STATUS_HANDLE.with(|h| *h.borrow()) {
         sig.set(Some(StatusMsg { text, ok }));
         // Auto-hide after 3.5s to match the prior JS behavior.
         let sig_clone = sig;
@@ -113,36 +113,36 @@ pub fn mount_options(snapshot: JsValue) -> Result<(), JsValue> {
     // wrapper in options.html, hence a separate mount; it shares the
     // main tree's status banner by calling setOptionsStatus through
     // the wasm export.
-    if let Some(allow_root) = document.get_element_by_id("rust-allowlist-root") {
-        if let Ok(el) = allow_root.dyn_into::<web_sys::HtmlElement>() {
-            let allow_snap = snap.allowlist.clone();
-            std::mem::forget(leptos::mount::mount_to(el, move || {
-                view! { <AllowlistEditor snap=allow_snap.clone() /> }
-            }));
-        }
+    if let Some(allow_root) = document.get_element_by_id("rust-allowlist-root")
+        && let Ok(el) = allow_root.dyn_into::<web_sys::HtmlElement>()
+    {
+        let allow_snap = snap.allowlist.clone();
+        std::mem::forget(leptos::mount::mount_to(el, move || {
+            view! { <AllowlistEditor snap=allow_snap.clone() /> }
+        }));
     }
 
     // Flat firewall-style rule table: one row per rule across every
     // scope and action, with scope/action as inline cells.
-    if let Some(config_root) = document.get_element_by_id("rust-config-root") {
-        if let Ok(el) = config_root.dyn_into::<web_sys::HtmlElement>() {
-            let cfg = snap.config.clone();
-            std::mem::forget(leptos::mount::mount_to(el, move || {
-                view! { <RulesTable initial=cfg.clone() /> }
-            }));
-        }
+    if let Some(config_root) = document.get_element_by_id("rust-config-root")
+        && let Ok(el) = config_root.dyn_into::<web_sys::HtmlElement>()
+    {
+        let cfg = snap.config.clone();
+        std::mem::forget(leptos::mount::mount_to(el, move || {
+            view! { <RulesTable initial=cfg.clone() /> }
+        }));
     }
 
     // Tertiary root: raw JSON editor. Reads the initial config text
     // synchronously from `chrome.storage.local` when its Refresh
     // handler fires so it stays in sync with the config editor's
     // mutations.
-    if let Some(json_root) = document.get_element_by_id("rust-json-root") {
-        if let Ok(el) = json_root.dyn_into::<web_sys::HtmlElement>() {
-            std::mem::forget(leptos::mount::mount_to(el, move || {
-                view! { <JsonEditor /> }
-            }));
-        }
+    if let Some(json_root) = document.get_element_by_id("rust-json-root")
+        && let Ok(el) = json_root.dyn_into::<web_sys::HtmlElement>()
+    {
+        std::mem::forget(leptos::mount::mount_to(el, move || {
+            view! { <JsonEditor /> }
+        }));
     }
 
     Ok(())
@@ -968,10 +968,10 @@ impl HealthData {
             }
             _ => {}
         }
-        if row.action == LayerKind::Block {
-            if let Some(shadow) = crate::lint::block_shadowed_by(all_allows, value) {
-                return (RuleHealth::Shadowed, Some(shadow.value.clone()), hits);
-            }
+        if row.action == LayerKind::Block
+            && let Some(shadow) = crate::lint::block_shadowed_by(all_allows, value)
+        {
+            return (RuleHealth::Shadowed, Some(shadow.value.clone()), hits);
         }
         if hits > 0 {
             (RuleHealth::Firing, None, hits)
@@ -1910,7 +1910,7 @@ fn infer_host(raw: &str) -> String {
 /// Split a `\n`-separated textarea value into a trimmed, non-empty
 /// list. Mirrors the old JS `linesToList` helper.
 fn lines_to_list(text: &str) -> Vec<String> {
-    text.split(|c| c == '\n' || c == '\r')
+    text.split(['\n', '\r'])
         .map(|l| l.trim())
         .filter(|l| !l.is_empty())
         .map(String::from)

@@ -28,12 +28,13 @@
 //! native release build; the in-browser WASM runtime typically adds
 //! 1.5-2x on top. See `docs/benchmarks.md` for the breakdown.
 
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+use criterion::{BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use hush::types::{
     Allowlist, BehaviorState, Config, IframeHit, JsCall, ReplayVendor, Resource, SiteConfig,
     StickyHit, StickyRect,
 };
 use hush::{SuggestionLayer, compute_suggestions};
+use std::hint::black_box;
 
 /// Parameters describing a synthetic tab snapshot. Chosen scales
 /// below match the production caps; the detector mix roughly mirrors

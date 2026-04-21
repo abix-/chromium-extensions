@@ -260,7 +260,7 @@ async fn storage_local_get_one(key: &str) -> Result<JsValue, JsValue> {
         .dyn_into()
         .map_err(|_| JsValue::from_str("storage.local.get did not return a Promise"))?;
     let reply = JsFuture::from(promise).await?;
-    Ok(Reflect::get(&reply, &JsValue::from_str(key))?)
+    Reflect::get(&reply, &JsValue::from_str(key))
 }
 
 async fn storage_local_set_one(key: &str, value: &JsValue) -> Result<(), JsValue> {
@@ -284,7 +284,7 @@ async fn storage_session_get_one(key: &str) -> Result<JsValue, JsValue> {
         .dyn_into()
         .map_err(|_| JsValue::from_str("storage.session.get did not return a Promise"))?;
     let reply = JsFuture::from(promise).await?;
-    Ok(Reflect::get(&reply, &JsValue::from_str(key))?)
+    Reflect::get(&reply, &JsValue::from_str(key))
 }
 
 async fn storage_session_set_one(key: &str, value: &JsValue) -> Result<(), JsValue> {
@@ -310,19 +310,19 @@ fn global_scope() -> JsValue {
 
 fn chrome_root() -> Result<JsValue, JsValue> {
     let g = global_scope();
-    Ok(Reflect::get(&g, &JsValue::from_str("chrome"))?)
+    Reflect::get(&g, &JsValue::from_str("chrome"))
 }
 
 fn chrome_storage_local() -> Result<JsValue, JsValue> {
     let chrome = chrome_root()?;
     let storage = Reflect::get(&chrome, &JsValue::from_str("storage"))?;
-    Ok(Reflect::get(&storage, &JsValue::from_str("local"))?)
+    Reflect::get(&storage, &JsValue::from_str("local"))
 }
 
 fn chrome_storage_session() -> Result<JsValue, JsValue> {
     let chrome = chrome_root()?;
     let storage = Reflect::get(&chrome, &JsValue::from_str("storage"))?;
-    Ok(Reflect::get(&storage, &JsValue::from_str("session"))?)
+    Reflect::get(&storage, &JsValue::from_str("session"))
 }
 
 fn get_fn_from(parent: &JsValue, name: &str) -> Result<Function, JsValue> {
@@ -605,10 +605,7 @@ async fn do_sync_dynamic_rules() -> Result<(), JsValue> {
 
 fn chrome_dnr() -> Result<JsValue, JsValue> {
     let chrome = chrome_root()?;
-    Ok(Reflect::get(
-        &chrome,
-        &JsValue::from_str("declarativeNetRequest"),
-    )?)
+    Reflect::get(&chrome, &JsValue::from_str("declarativeNetRequest"))
 }
 
 async fn rehydrate_rule_patterns() {
@@ -991,12 +988,10 @@ fn compute_rule_diagnostics(tab_id: Option<i32>, hostname: Option<&str>) -> Vec<
             // so they always show up in this tab's diagnostics
             // regardless of hostname.
             let is_global = source_domain == crate::types::GLOBAL_SCOPE_KEY;
-            if !is_global {
-                if let (Some(h), false) = (&host, source_domain.is_empty()) {
-                    let matches = h == &source_domain || h.ends_with(&format!(".{source_domain}"));
-                    if !matches {
-                        continue;
-                    }
+            if !is_global && let (Some(h), false) = (&host, source_domain.is_empty()) {
+                let matches = h == &source_domain || h.ends_with(&format!(".{source_domain}"));
+                if !matches {
+                    continue;
                 }
             }
             let keyword = pattern_keyword(&meta.pattern).to_string();
@@ -1072,17 +1067,16 @@ async fn recompute_all_tab_suggestions() {
     for (tab_id, state) in snapshots {
         let fresh = compute_suggestions_for(&state, &config).await;
         STATE.with(|s| {
-            if let Some(b) = s.borrow_mut().tab_behavior.get_mut(&tab_id) {
-                if b.suggestions.len() != fresh.len()
+            if let Some(b) = s.borrow_mut().tab_behavior.get_mut(&tab_id)
+                && (b.suggestions.len() != fresh.len()
                     || !b
                         .suggestions
                         .iter()
                         .zip(fresh.iter())
-                        .all(|(a, b)| a.key == b.key)
-                {
-                    b.suggestions = fresh;
-                    mutated.push(tab_id);
-                }
+                        .all(|(a, b)| a.key == b.key))
+            {
+                b.suggestions = fresh;
+                mutated.push(tab_id);
             }
         });
     }
@@ -1392,11 +1386,11 @@ fn install_runtime_on_message() -> Result<(), JsValue> {
 
 fn chrome_runtime() -> Result<JsValue, JsValue> {
     let chrome = chrome_root()?;
-    Ok(Reflect::get(&chrome, &JsValue::from_str("runtime"))?)
+    Reflect::get(&chrome, &JsValue::from_str("runtime"))
 }
 
 fn get_event(parent: &JsValue, name: &str) -> Result<JsValue, JsValue> {
-    Ok(Reflect::get(parent, &JsValue::from_str(name))?)
+    Reflect::get(parent, &JsValue::from_str(name))
 }
 
 fn add_listener<F>(event: &JsValue, cb: &Closure<F>) -> Result<(), JsValue>
@@ -1830,10 +1824,10 @@ fn handle_scan(msg: &JsValue, sender: &JsValue) {
     get_behavior_mut(tab_id, |state| {
         if let Some(h) = tab_host {
             state.page_host = Some(h);
-        } else if let Some(h) = &msg_host {
-            if state.page_host.is_none() {
-                state.page_host = Some(h.clone());
-            }
+        } else if let Some(h) = &msg_host
+            && state.page_host.is_none()
+        {
+            state.page_host = Some(h.clone());
         }
         if let Some(mut rs) = resources {
             let mut seen: std::collections::HashSet<String> = state
@@ -2106,10 +2100,10 @@ fn handle_accept_suggestion(msg: &JsValue, send_response: JsValue) {
             }
         }
         // Write back.
-        if let Ok(v) = crate::chrome_bridge::to_js(&config) {
-            if let Err(e) = storage_local_set_one(STORAGE_KEY, &v).await {
-                log_error(&format!("accept-suggestion set config failed: {:?}", e));
-            }
+        if let Ok(v) = crate::chrome_bridge::to_js(&config)
+            && let Err(e) = storage_local_set_one(STORAGE_KEY, &v).await
+        {
+            log_error(&format!("accept-suggestion set config failed: {:?}", e));
         }
         // Drop from every tab's suggestions + refresh badges.
         // Detectors now append discriminator suffixes to keys
@@ -2179,16 +2173,17 @@ fn handle_allowlist_add_suggestion(msg: &JsValue, send_response: JsValue) {
         let raw = storage_local_get_one(ALLOWLIST_KEY)
             .await
             .unwrap_or(JsValue::NULL);
-        if !raw.is_undefined() && !raw.is_null() {
-            if let Ok(parsed) = serde_wasm_bindgen::from_value::<Allowlist>(raw) {
-                al = parsed;
-            }
+        if !raw.is_undefined()
+            && !raw.is_null()
+            && let Ok(parsed) = serde_wasm_bindgen::from_value::<Allowlist>(raw)
+        {
+            al = parsed;
         }
         crate::bg_logic::apply_allowlist_add(&mut al, &key);
-        if let Ok(v) = crate::chrome_bridge::to_js(&al) {
-            if let Err(e) = storage_local_set_one(ALLOWLIST_KEY, &v).await {
-                log_error(&format!("allowlist-add set failed: {:?}", e));
-            }
+        if let Ok(v) = crate::chrome_bridge::to_js(&al)
+            && let Err(e) = storage_local_set_one(ALLOWLIST_KEY, &v).await
+        {
+            log_error(&format!("allowlist-add set failed: {:?}", e));
         }
         STATE.with(|s| s.borrow_mut().allowlist_cache = al);
         // Drop from every tab's suggestions + refresh badges.
