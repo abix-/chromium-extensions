@@ -180,8 +180,10 @@ function inIframe(): boolean {
 function addNotification(elem: JQuery<HTMLElement>, putInside: boolean): void {
   const $elem = $(elem);
   
-  // Ignore if the element is a window.
-  if ($.isWindow($elem)) {
+  // Ignore if the element is a window. jQuery 4 removed
+  // $.isWindow(); inlining the canonical check (obj === obj.window).
+  const raw = $elem[0] as unknown;
+  if (raw != null && (raw as Window).window === raw) {
     console.log('Ignoring window for notification.');
     return;
   }

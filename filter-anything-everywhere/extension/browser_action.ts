@@ -170,8 +170,12 @@ async function rerender() {
     func: () => {
       // This is a hack to check the status of the content script.
       // The value is set in content.ts.
-      // @ts-expect-error Property 'hasAqi' does not exist on type 'Window & typeof globalThis'.
-      return window.hasAqi;
+      // @ts-ignore — `hasAqi` is set dynamically in content.ts.
+      // Using @ts-ignore instead of @ts-expect-error because
+      // current @types/chrome supplies a permissive window type
+      // under which the access is legal; @ts-expect-error would
+      // then fail as unused.
+      return (window as any).hasAqi;
     },
   };
   let injection_results = null;

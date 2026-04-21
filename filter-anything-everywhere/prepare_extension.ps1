@@ -27,14 +27,20 @@ Get-ChildItem -Path "extension" -Recurse | Where-Object {
     Copy-Item -Path $_.FullName -Destination $Destination
 }
 
-# Run rollup
-Start-Process -FilePath "rollup" -ArgumentList "-c" -NoNewWindow -Wait
+# Run rollup. On Windows, the rollup bin is a .cmd wrapper that
+# Start-Process won't execute directly — route through npx so it
+# resolves node_modules/.bin/rollup(.cmd) correctly. `npx --no
+# -install` avoids an accidental network fetch if it's missing.
+& npx --no-install rollup -c
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "rollup failed with exit code $LASTEXITCODE"
+    Exit $LASTEXITCODE
+}
 
-# Create a ZIP file for the extension
-Set-Location $ExtCopy
-Compress-Archive -Path * -DestinationPath "$BuildDir\extension.zip"
-
-# Move the ZIP file to the build directory
-Move-Item -Path "$ExtCopy\extension.zip" -Destination "$BuildDir\extension.zip"
+# Create a ZIP file at build/extension.zip. Compress-Archive
+# writes to the absolute destination path directly so no move
+# step is needed — the prior version had a dead Move-Item call
+# that failed because the file was never staged at that path.
+Compress-Archive -Path "$ExtCopy\*" -DestinationPath "$BuildDir\extension.zip" -Force
 
 Write-Host "The extension has been created at '$BuildDir\extension.zip'."

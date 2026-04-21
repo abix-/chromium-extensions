@@ -26,7 +26,7 @@ wasm-bindgen-futures = "0.4"
 # small-string keys per the maintainer's benchmarks (foldhash README,
 # 2025). All per-detector HashMaps in the engine are string-keyed
 # (host names), so the swap maps straight onto our hot path.
-foldhash = "0.1"
+foldhash = "0.2"
 # RFC 3986 URL parsing. Used for canonicalization and host extraction
 # from stack-trace frames. Adds ~80 KB to the WASM bundle but buys us
 # punycode/IDN handling and keeps us out of regex land.
@@ -88,7 +88,7 @@ serde_json = "1.0"
 # throughput against the pre-port JS baseline. Criterion produces
 # stable mean + stddev with outlier filtering; the JS side uses Node's
 # built-in performance.now for the same synthetic fixture.
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 
 [[bench]]
 name = "compute_suggestions"
