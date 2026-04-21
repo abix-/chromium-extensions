@@ -53,6 +53,29 @@ const SESSION_FIREWALL_LOG_KEY: &str = "firewallLog";
 // ---------------------------------------------------------------------------
 // State.
 
+// LIVE_CLOSURES holds the wasm-bindgen `Closure<...>` values we
+// handed to chrome.* event targets; dropping a Closure tears down
+// the JS-side callback, so we pin them for the life of the
+// service worker by stashing them in a thread-local vec.
+//
+// Type-erased via `Box<dyn Any>` because this single vec holds
+// closures of several shapes:
+// - `Closure<dyn Fn()>` for `onStartup`
+// - `Closure<dyn Fn(JsValue)>` for `onInstalled`, `onRuleMatched`
+// - `Closure<dyn Fn(JsValue, JsValue)>` for `storage.onChanged`
+// - `Closure<dyn Fn(JsValue, JsValue, JsValue)>` for
+//   `runtime.onMessage`
+//
+// main_world.rs can keep its sibling vec typed because every
+// closure it stores has the same signature. Here the set is
+// intrinsically heterogeneous and `dyn Any` is the right tool;
+// there's no read side (we never inspect what's in the bag), so
+// type erasure costs nothing at runtime.
+//
+// Disposal: the service worker is killed and recreated routinely
+// by Chrome's MV3 lifecycle. When it goes, the thread-local goes
+// with it, and every Closure drops, cleaning up cleanly. No
+// manual disposal is needed or possible while the SW is alive.
 thread_local! {
     static STATE: RefCell<BackgroundState> = RefCell::new(BackgroundState::default());
     static LIVE_CLOSURES: RefCell<Vec<Box<dyn std::any::Any>>> =

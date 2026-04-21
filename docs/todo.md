@@ -227,24 +227,23 @@ vanishes from the signal. Either fix the offending signatures
 or narrow the attribute to the specific function(s) that
 trigger it, with a one-line comment explaining why.
 
-### Unify `LIVE_CLOSURES` types across the crate
+### (closed 2026-04-21) Unify `LIVE_CLOSURES` types
 
-Two copies of the "keep JS-owned closures alive forever"
-pattern, typed differently:
+Can't unify as originally stated: `background.rs` stores
+`Closure` values of FOUR different shapes (`Fn()` for onStartup,
+`Fn(JsValue)` for onInstalled, `Fn(JsValue, JsValue)` for
+storage.onChanged, `Fn(JsValue, JsValue, JsValue)` for
+runtime.onMessage). A single typed vec can't hold heterogeneous
+types; an enum wrapper would add runtime dispatch the set
+doesn't need (we never read from the vec - it's a pin-for-life
+bag). `main_world.rs` can stay typed because every closure it
+stores has the same signature.
 
-- `hush/src/background.rs:58-59`:
-  `RefCell<Vec<Box<dyn std::any::Any>>>`
-- `hush/src/main_world.rs:50-52`:
-  `RefCell<Vec<Closure<dyn Fn(JsValue, JsValue)>>>`
-
-The `main_world.rs` form still type-checks what's in the vec.
-The `background.rs` form is `dyn Any` and gives up type
-information - every push goes through `fn keep<T: Any>(c: T)`
-at `:62-64`. Pick the typed form.
-
-Also document the disposal model in a comment next to each
-`static`: "service-worker death is the only reaper; this grows
-unbounded until SW is killed, which Chrome does routinely."
+Did instead: expanded the doc comment next to the
+`LIVE_CLOSURES` thread-local in background.rs to spell out
+which shapes go in, why `Any` is correct here, and the disposal
+model (SW-death-is-the-reaper; Chrome kills the SW routinely;
+nothing to manually free).
 
 ### (done 2026-04-21) `migrateConfigSchema` idempotence + crash-recovery test
 
