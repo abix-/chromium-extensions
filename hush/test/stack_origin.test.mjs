@@ -84,7 +84,7 @@ function loadMainworld() {
   if (!exported || typeof exported.stackOriginHost !== "function") {
     throw new Error("mainworld.js did not expose __hush_mainworld__.stackOriginHost; check the IIFE didn't throw before the export line");
   }
-  return exported.stackOriginHost;
+  return { stackOriginHost: exported.stackOriginHost, ctx };
 }
 
 const fixture = JSON.parse(
@@ -92,7 +92,7 @@ const fixture = JSON.parse(
 );
 
 test("mainworld stackOriginHost matches every fixture case", () => {
-  const stackOriginHost = loadMainworld();
+  const { stackOriginHost } = loadMainworld();
   assert.ok(fixture.cases && fixture.cases.length > 0, "fixture has cases");
 
   for (const c of fixture.cases) {
@@ -103,4 +103,17 @@ test("mainworld stackOriginHost matches every fixture case", () => {
       `fixture case \`${c.name}\`: JS returned \`${got}\`, expected \`${c.expected}\``
     );
   }
+});
+
+test("V8 stack-format self-test stays silent when the parser is healthy", () => {
+  // The self-test runs on mainworld init and only sets
+  // window.__hush_stack_selftest_failed__ on parse-mismatch. The
+  // vm context above has a healthy URL parser, so the self-test
+  // should be silent (flag undefined).
+  const { ctx } = loadMainworld();
+  assert.strictEqual(
+    ctx.window.__hush_stack_selftest_failed__,
+    undefined,
+    "self-test sets the flag only on parser regression"
+  );
 });

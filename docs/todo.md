@@ -292,14 +292,20 @@ a conservative MSRV actually needed by deps. Reality-check —
 probably `rust-version = "1.80"` and `edition = "2021"` work
 fine.
 
-### Runtime self-test for `Error().stack` format
+### (done 2026-04-21) Runtime self-test for `Error().stack` format
 
-`hush/src/stack.rs` + `hush/mainworld.js::cap` parse V8 stack
-strings. V8 has changed the format before. At `mainworld.js`
-init, synthesize a known `new Error().stack` and confirm it
-matches the parser's assumptions. If not, bail loud via the
-debug payload and fall back to empty origin (graceful
-degradation, not silent miss).
+Shipped in mainworld.js right after stackOriginHost export.
+Synthesizes a canonical V8 frame `at fn (https://host/path:L:C)`
+and asserts stackOriginHost pulls back the expected host. On
+mismatch it writes `console.warn` and sets
+`window.__hush_stack_selftest_failed__` with diagnostic detail
+for the popup debug payload to surface later (flag present =
+V8 format changed; future work can pipe that to the badge).
+Test `V8 stack-format self-test stays silent when the parser
+is healthy` locks the silent-on-healthy invariant.
+
+A V8 format change now produces a loud DevTools warning the day
+it lands, instead of silent attribution failures accumulating.
 
 ### Split the four Hush monoliths
 

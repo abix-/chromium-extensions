@@ -149,6 +149,33 @@
   // is a pure function of its string-array argument.
   try { window.__hush_mainworld__ = { stackOriginHost }; } catch (e) {}
 
+  // Runtime self-test for the V8 stack-frame format. The parser in
+  // stackOriginHost assumes V8 formats frames as
+  // `    at name (https://host/path:line:col)`. V8 has changed
+  // this format before and could again; without this check, a
+  // format change would break attribution silently (every call
+  // gets an empty origin, but nothing flags the regression).
+  //
+  // The check synthesizes a known V8-shaped frame and asserts the
+  // host comes back correctly. If it doesn't, log loud to DevTools
+  // so a maintainer sees the failure before users file bugs about
+  // missed detections. Only runs once at load and writes at most
+  // one console.warn on failure.
+  try {
+    const synth = "    at selfcheck (https://hush.selfcheck.invalid/probe.js:1:1)";
+    const got = stackOriginHost([synth]);
+    if (got !== "hush.selfcheck.invalid") {
+      console.warn(
+        "[Hush] stack-origin self-test FAILED. V8 stack-frame format may have changed.",
+        "expected 'hush.selfcheck.invalid', got:", got,
+        "from synthetic frame:", synth
+      );
+      try { window.__hush_stack_selftest_failed__ = { expected: "hush.selfcheck.invalid", got, frame: synth }; } catch (_) {}
+    }
+  } catch (e) {
+    try { console.warn("[Hush] stack-origin self-test threw:", e); } catch (_) {}
+  }
+
   // Host-anchor pattern match. Deliberately smaller grammar than
   // uBlock's URL filters because our enforcement point is a
   // pre-extracted script-origin HOST, not a URL:
