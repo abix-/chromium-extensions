@@ -14,6 +14,12 @@
     .ytp-fullscreen-grid-stills-container      (thumbnail grid)
     .ytp-fullscreen-grid-buttons-container     (top button bar)
 
+  RENAME GATE: if YouTube renames these classes, update BOTH
+  this file (selector block below) AND zoom-extension/README.md
+  lines 29-32. Those are the only two places these classes are
+  listed; keep them in lockstep. A CI watcher could enforce the
+  parity but for four strings that's overkill.
+
   Gating: default HIDE. When the user's toggle is off, content.js
   adds `html.hush-zoom-show-fullscreen-grid` and the :not()
   selector no longer matches, restoring the grid.

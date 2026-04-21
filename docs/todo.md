@@ -257,22 +257,19 @@ Tests needed:
 - Start at schema 0, run migrator, simulate storage failure,
   re-run, assert recovery without corruption.
 
-### Move YouTube selectors to a JSON config file
+### (closed 2026-04-21) Move YouTube selectors to JSON
 
-`zoom-extension/content.css` pins `.ytp-fullscreen-grid*` class
-names. YouTube renames internal markup ~annually. Extract to
-`zoom-extension/selectors.json`:
+Premise doesn't hold for this extension: `content.css` is
+manifest-injected at `document_start`, before any JS runs.
+Moving the selectors to a JSON file + injecting via content.js
+would LOSE that timing guarantee (JS runs after the page's own
+scripts). A build-step template would work but there's no build
+system for a 4-selector pure-JS extension.
 
-```json
-{ "fullscreen_grid_classes": [
-  "ytp-fullscreen-grid",
-  "ytp-fullscreen-grid-main-content",
-  "ytp-fullscreen-grid-stills-container",
-  "ytp-fullscreen-grid-buttons-container"
-] }
-```
-
-A rename becomes a JSON edit, not a code + css + docs change.
+Did instead: added a rename-gate comment to `content.css` (it
+and `README.md:29-32` are the only two places those classes
+live; the comment flags both) so future YouTube renames are
+an obvious 2-file bump rather than a silent drift.
 
 ### Dial down the Rust version pin
 
