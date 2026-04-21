@@ -96,40 +96,32 @@
   document.addEventListener("mousemove", handleMouseMove, false);
 
   // -----------------------------------------------------------------
-  // YouTube fullscreen grid remover + wheel blocker (per-user).
+  // YouTube fullscreen grid blocker (per-user).
   //
-  // YouTube's fullscreen UI inserts a "more videos" grid
-  // (`.ytp-fullscreen-grid` and children) when the user scrolls.
-  // Two-layer defense:
+  // Primary mechanism is the manifest-injected content.css which
+  // runs at document_start — before any YouTube script — and
+  // unconditionally hides every variant of `.ytp-fullscreen-grid*`,
+  // `.ytp-fullerscreen-*`, and `.ytp-modern-videowall-still*` via
+  // wildcard attribute selectors. That's enough on its own: the
+  // elements may exist in the DOM but are invisible and non-
+  // interactive from the first paint.
   //
-  //   1. DOM removal via MutationObserver. Every time YouTube
-  //      inserts a grid element, we delete it immediately. No
-  //      chance for it to render, no event handlers hanging off
-  //      it, no re-triggering on subsequent wheels.
-  //   2. Capture-phase wheel blocker on window. Prevents YouTube
-  //      from even reacting to the wheel event in the first
-  //      place, because if YouTube's handler runs it may insert
-  //      the grid between our MutationObserver ticks.
+  // Per-user toggle: the CSS is gated on
+  // `html:not(.hush-zoom-show-fullscreen-grid)`. Default state
+  // (no class) = HIDE. When the setting is OFF, this JS adds
+  // the `hush-zoom-show-fullscreen-grid` class and the CSS's
+  // :not() selector stops matching, restoring the grid.
   //
-  // Zoom handled inline in the same capture handler — we do the
-  // zoom math here and call stopImmediatePropagation so YouTube
-  // never sees the event, ensuring Shift+Alt+wheel doesn't also
-  // trigger the grid.
-  //
-  // Pattern refs:
-  //   https://github.com/hempe/youtubeNoScrollForDetails
-  // (plus the user-observed `.ytp-fullscreen-grid-stills-container`
-  //  element that confirms the grid hierarchy.)
+  // Secondary mechanism: capture-phase wheel handler that calls
+  // preventDefault + stopImmediatePropagation so YouTube's own
+  // handler never fires in fullscreen. Handles the zoom combo
+  // inline so Shift+Alt+wheel still zooms while also eating the
+  // event (preventing YouTube from reacting to it at all).
   //
   // Setting: `chrome.storage.sync.blockFullscreenScroll` (default
   // true). Changes apply live via `storage.onChanged`.
   // -----------------------------------------------------------------
-  const GRID_SELECTOR = [
-    ".ytp-fullscreen-grid",
-    ".ytp-fullscreen-grid-stills-container",
-    ".ytp-fullscreen-grid-buttons-container"
-  ].join(",");
-
+  const SHOW_CLASS = "hush-zoom-show-fullscreen-grid";
   let blockFullscreenScroll = true;
 
   function isInside(node, selector) {
@@ -139,32 +131,30 @@
     );
   }
 
-  function removeGridElements() {
-    if (!blockFullscreenScroll) return;
-    const nodes = document.querySelectorAll(GRID_SELECTOR);
-    for (const n of nodes) {
-      n.remove();
+  function applyBlockerClass() {
+    const root = document.documentElement;
+    if (!root) return;
+    if (blockFullscreenScroll) {
+      root.classList.remove(SHOW_CLASS);
+    } else {
+      root.classList.add(SHOW_CLASS);
     }
   }
 
-  // Unified capture-phase wheel handler. Runs BEFORE any of
-  // YouTube's handlers can react. Does three jobs:
-  //   a) If the Shift+Alt zoom combo is held, do the zoom math
-  //      inline and eat the event so YouTube doesn't also fire.
-  //   b) If we're fullscreen over the player (and not inside the
-  //      settings menu), eat the event so the grid never tries
-  //      to reveal.
-  //   c) Otherwise pass through (normal page scroll, etc).
+  // Unified capture-phase wheel handler on window. Runs BEFORE
+  // any of YouTube's handlers. Does two jobs:
+  //   a) Shift+Alt held → run the zoom math inline, then
+  //      preventDefault + stopImmediatePropagation so YouTube
+  //      doesn't also react.
+  //   b) In fullscreen over the player (not inside the settings
+  //      menu) → eat the event so YouTube's scroll handler
+  //      never fires.
   window.addEventListener(
     "wheel",
     (e) => {
       const isZoomCombo = e.shiftKey && e.altKey;
 
       if (isZoomCombo) {
-        // Zoom inline so we don't need the separate document-
-        // level handler (that one couldn't see the event in
-        // fullscreen once we're calling stopImmediatePropagation
-        // here).
         try { handleWheel(e); } catch (_) {}
         e.preventDefault();
         e.stopImmediatePropagation();
@@ -179,57 +169,24 @@
 
       e.preventDefault();
       e.stopImmediatePropagation();
-      // Also sweep the DOM now — if YouTube's handler ran earlier
-      // this page load, the grid may already be in the DOM even
-      // though it's not visible. Cheap sanity.
-      removeGridElements();
     },
     { capture: true, passive: false }
   );
 
-  // MutationObserver: kill any grid element the moment YouTube
-  // inserts it. Observes the whole document because YouTube may
-  // mount the grid as a descendant of the player OR as a sibling
-  // of the player's container, depending on layout version.
-  let gridObserver = null;
-  function startGridObserver() {
-    if (gridObserver) return;
-    gridObserver = new MutationObserver(removeGridElements);
-    gridObserver.observe(document.documentElement, {
-      childList: true,
-      subtree: true
-    });
-    // Initial sweep in case the grid was inserted before the
-    // observer was attached (content_scripts run at document_end).
-    removeGridElements();
-  }
-  function stopGridObserver() {
-    if (!gridObserver) return;
-    gridObserver.disconnect();
-    gridObserver = null;
-  }
-
-  function applyBlocker(enabled) {
-    blockFullscreenScroll = !!enabled;
-    if (blockFullscreenScroll) {
-      startGridObserver();
-    } else {
-      stopGridObserver();
-    }
-  }
-
   try {
     chrome.storage.sync.get({ blockFullscreenScroll: true }).then((s) => {
-      applyBlocker(!!s.blockFullscreenScroll);
+      blockFullscreenScroll = !!s.blockFullscreenScroll;
+      applyBlockerClass();
     });
     chrome.storage.onChanged.addListener((changes, area) => {
       if (area === "sync" && changes.blockFullscreenScroll) {
-        applyBlocker(!!changes.blockFullscreenScroll.newValue);
+        blockFullscreenScroll = !!changes.blockFullscreenScroll.newValue;
+        applyBlockerClass();
       }
     });
   } catch (e) {
-    // Extension context gone; default behavior stays on.
-    applyBlocker(true);
+    // Extension context gone; default behavior (block) stays on.
+    applyBlockerClass();
   }
  
   // Reapply zoom when full-screen mode changes.

@@ -1,0 +1,35 @@
+/*
+  Hides YouTube's fullscreen "more videos" grid and its children.
+  Manifest-injected at document_start so the rules are live
+  before any YouTube script runs — no flash, no race. Wildcard
+  selectors match every class variant YouTube uses across old /
+  new layouts:
+
+    .ytp-fullscreen-grid          (container)
+    .ytp-fullscreen-grid-main-content
+    .ytp-fullscreen-grid-stills-container
+    .ytp-fullscreen-grid-buttons-container
+    .ytp-fullerscreen-edu-button  (YouTube spells it
+                                   "fullerscreen" in newer UIs)
+    .ytp-fullerscreen-grid        (if YouTube renames later)
+    .ytp-modern-videowall-still   (individual video thumbnails
+                                   inside the grid)
+
+  Gating pattern: default is HIDE. The user's options-page
+  toggle adds `html.hush-zoom-show-fullscreen-grid` to document
+  root when the block is disabled, and the `:not()` selector
+  matches only when that class is absent. Default-block means
+  the protection is active from document_start with zero JS
+  dependency (content.js runs at document_end).
+*/
+
+html:not(.hush-zoom-show-fullscreen-grid) [class*="ytp-fullscreen-grid"],
+html:not(.hush-zoom-show-fullscreen-grid) [class*="ytp-fullerscreen-grid"],
+html:not(.hush-zoom-show-fullscreen-grid) .ytp-fullerscreen-edu-button,
+html:not(.hush-zoom-show-fullscreen-grid) button.ytp-fullerscreen-edu-button,
+html:not(.hush-zoom-show-fullscreen-grid) [class*="ytp-modern-videowall-still"] {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
