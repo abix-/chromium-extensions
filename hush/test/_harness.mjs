@@ -116,8 +116,31 @@ export function makeContext() {
   class OfflineAudioContext {
     constructor(channels, length, sampleRate) {
       this.channels = channels;
+      this.numberOfChannels = channels;
       this.length = length;
       this.sampleRate = sampleRate;
+    }
+    // Real-rendering marker so tests can distinguish the spoof
+    // path (silent buffer via createBuffer) from the original path.
+    startRendering() {
+      return Promise.resolve({
+        __marker: "REAL_RENDERING",
+        numberOfChannels: this.numberOfChannels,
+        length: this.length,
+        sampleRate: this.sampleRate,
+      });
+    }
+    // mainworld's audio spoof calls `this.createBuffer(...)` to
+    // synthesize a silent AudioBuffer.
+    createBuffer(numberOfChannels, length, sampleRate) {
+      return {
+        numberOfChannels,
+        length,
+        sampleRate,
+        getChannelData() {
+          return new Float32Array(length);
+        },
+      };
     }
   }
   class XMLHttpRequest {
@@ -150,6 +173,23 @@ export function makeContext() {
     hidRequest: 0,
     serialRequest: 0,
   };
+
+  // ImageData stub: mainworld's canvas spoof returns `new ImageData(w, h)`
+  // when hushSpoof tag is 'canvas'. Supports both ImageData(w, h) and
+  // ImageData(data, w, h) signatures per the spec.
+  class ImageData {
+    constructor(widthOrData, heightOrWidth, maybeHeight) {
+      if (typeof widthOrData === "number") {
+        this.width = widthOrData;
+        this.height = heightOrWidth;
+        this.data = new Uint8ClampedArray(this.width * this.height * 4);
+      } else {
+        this.data = widthOrData;
+        this.width = heightOrWidth;
+        this.height = maybeHeight;
+      }
+    }
+  }
 
   class Clipboard {
     readText() {
@@ -217,6 +257,7 @@ export function makeContext() {
     WebSocket,
     EventTarget,
     CustomEvent,
+    ImageData,
     Clipboard,
     Bluetooth,
     USB,
@@ -249,12 +290,15 @@ export function makeContext() {
     XMLHttpRequest,
     WebSocket,
     EventTarget,
+    ImageData,
     Clipboard,
     Bluetooth,
     USB,
     HID,
     Serial,
     DOMException,
+    Uint8ClampedArray,
+    Uint8Array,
     fetch: fetchStub,
     setTimeout,
     clearTimeout,
@@ -275,8 +319,8 @@ export function makeContext() {
       }
     },
     Blob: class Blob {
-      constructor() {
-        this.type = "";
+      constructor(parts, options) {
+        this.type = (options && options.type) || "";
         this.size = 0;
       }
     },
