@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
   "name": "YouTube Zoom & Pan - ChatGPT",
-  "version": "1.0",
+  "version": "1.1",
   "description": "Zoom and pan YouTube videos using keyboard shortcuts and mouse wheel integration.",
+  "permissions": ["storage"],
   "host_permissions": [
     "*://*.youtube.com/*"
   ],
@@ -12,5 +13,9 @@
       "js": ["content.js"],
       "run_at": "document_end"
     }
-  ]
+  ],
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  }
 }

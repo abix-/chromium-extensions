@@ -96,6 +96,64 @@
   document.addEventListener("wheel", handleWheel, { passive: false });
   // Listen for mouse move events to handle panning.
   document.addEventListener("mousemove", handleMouseMove, false);
+
+  // -----------------------------------------------------------------
+  // YouTube scroll-to-preview blocker (per-user setting).
+  //
+  // YouTube attaches a wheel handler to thumbnail custom elements
+  // (ytd-rich-item-renderer, ytd-video-renderer, etc.) that hijacks
+  // mousewheel scrubbing to preview different frames of the video
+  // on hover. Users who just want to scroll the page find this
+  // disruptive.
+  //
+  // The fix: a capture-phase wheel listener fires BEFORE YouTube's
+  // bubble-phase one. When the event target is inside a thumbnail
+  // and the user isn't holding Shift+Alt (our zoom modifier), we
+  // stopImmediatePropagation. That suppresses YouTube's handler
+  // while leaving the browser default (page scroll) intact —
+  // stopPropagation does not cancel the default action.
+  //
+  // Controlled by chrome.storage.sync.blockPreviewScroll (default:
+  // true). Changes apply live via storage.onChanged.
+  // -----------------------------------------------------------------
+  const THUMBNAIL_SELECTOR = [
+    "ytd-thumbnail",
+    "ytd-rich-item-renderer",
+    "ytd-rich-grid-media",
+    "ytd-video-renderer",
+    "ytd-compact-video-renderer",
+    "ytd-grid-video-renderer",
+    "ytd-playlist-panel-video-renderer",
+    "yt-lockup-view-model",
+    "yt-collection-thumbnail-view-model",
+    "ytm-shorts-lockup-view-model-v2"
+  ].join(",");
+
+  let blockPreviewScroll = true;
+  try {
+    chrome.storage.sync.get({ blockPreviewScroll: true }).then((s) => {
+      blockPreviewScroll = !!s.blockPreviewScroll;
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === "sync" && changes.blockPreviewScroll) {
+        blockPreviewScroll = !!changes.blockPreviewScroll.newValue;
+      }
+    });
+  } catch (e) { /* extension context gone; leave default */ }
+
+  document.addEventListener("wheel", (e) => {
+    if (!blockPreviewScroll) return;
+    // Leave the event alone when the user is trying to zoom —
+    // the zoom handler above relies on seeing the wheel event.
+    if (e.shiftKey && e.altKey) return;
+    if (!e.target || typeof e.target.closest !== "function") return;
+    if (e.target.closest(THUMBNAIL_SELECTOR)) {
+      // Stops YouTube's bubble-phase handler from running. The
+      // default browser scroll still fires because we don't
+      // preventDefault.
+      e.stopImmediatePropagation();
+    }
+  }, { capture: true });
  
   // Reapply zoom when full-screen mode changes.
   document.addEventListener("fullscreenchange", () => {
