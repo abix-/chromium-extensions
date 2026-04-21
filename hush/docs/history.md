@@ -22,32 +22,21 @@ components `UnmatchedBanner` + `FooterButtons` replace the static
 `<div id="unmatched">` + `<footer>` blocks in `popup.html`. The
 Debug button builds its clipboard payload via
 `js_sys::Object::assign` + `JSON.stringify` with a 2-space
-indent. Stage 5 bootstrap-LOC target met: popup 20 + options 34
-+ content 32 = 86 LOC.
+indent. Stage 5 bootstrap-LOC target met for popup (20) + options
+(34); content.js stayed pure-JS rather than being ported (see
+note below).
 
-**Iter 6 (content.rs)**: the content script ported to Rust/WASM in
-one pass. `src/content.rs` (~1000 LOC) owns every subsystem that
-lived in `content.js`: layer application (`apply_remove`,
-`inject_hide_css`, `recount_hide`), DOM scans
-(`scan_hidden_iframes`, `scan_sticky_overlays`, `describe_element`),
-the `PerformanceObserver` resource stream, the `MutationObserver`
-that re-applies Remove on DOM mutations, the `__hush_call__` event
-listener that validates payloads against `SignalPayload` and
-flattens into `JsCall`, the `chrome.runtime.onMessage` listener for
-`hush:scan-once`, and the three fire-and-forget message senders
-(`hush:scan`, `hush:stats`, `hush:js-calls`, `hush:log`). Per-tab
-state lives in a `thread_local! { static STATE:
-RefCell<Option<ContentState>> }`; closures are pinned in a second
-`thread_local!` `Vec<Box<dyn Any>>` so the MutationObserver and
-PerformanceObserver callbacks don't get dropped while the tab is
-live. `content.js` collapsed from 464 LOC to a 32-line dynamic-
-import bootstrap that reads `chrome.storage.local` and hands the
-three-key snapshot to `hushContentMain`. Cargo.toml grew web-sys
-features for `PerformanceObserver`, `MutationObserver`,
-`HtmlIFrameElement`, `HtmlStyleElement`, `Location`, and the
-related init bags.
-
-
+**Iter 6 (content.rs port): did not land.** An earlier draft of
+this doc claimed `src/content.rs` owns the content-script
+runtime and `content.js` collapsed to a 32-line bootstrap. That
+port never shipped - `src/content.rs` does not exist in the
+crate and `content.js` is ~690 LOC of pure JS handling layer
+application, DOM scans, the PerformanceObserver/MutationObserver
+wiring, and the `__hush_call__` / `hush:scan-once` / `hush:stats`
+/ `hush:js-calls` message plumbing. Kept on the P0 punch list
+(see `docs/todo.md`) as "reconcile `src/content.rs` vs reality":
+either port for real, or leave content-script in JS as the
+supported shape.
 
 **Iter 5 (site list + per-site editor)**: the last big
 per-site-config UI port. `ConfigEditor` owns the full

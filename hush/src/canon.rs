@@ -101,8 +101,7 @@ mod tests {
 
     #[test]
     fn canonicalize_preserves_order_of_non_noise_params() {
-        let canon =
-            canonicalize_url("https://site.test/path?a=1&t=noise&b=2&_=also&c=3");
+        let canon = canonicalize_url("https://site.test/path?a=1&t=noise&b=2&_=also&c=3");
         assert_eq!(canon, "https://site.test/path?a=1&b=2&c=3");
     }
 
@@ -134,12 +133,18 @@ mod tests {
 
     #[test]
     fn pattern_keyword_extracts_longest_literal() {
-        assert_eq!(pattern_keyword("||collector.github.com^"), "collector.github.com");
+        assert_eq!(
+            pattern_keyword("||collector.github.com^"),
+            "collector.github.com"
+        );
     }
 
     #[test]
     fn pattern_keyword_handles_wildcards() {
-        assert_eq!(pattern_keyword("*.ads.doubleclick.net"), ".ads.doubleclick.net");
+        assert_eq!(
+            pattern_keyword("*.ads.doubleclick.net"),
+            ".ads.doubleclick.net"
+        );
     }
 
     #[test]

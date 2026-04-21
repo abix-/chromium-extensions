@@ -1,0 +1,60 @@
+{
+  "_doc": "Shared fixtures for the cross-language stack-origin contract test. Each case is consumed by both the Rust test in hush/src/stack.rs (via include_str!) and the JS test in hush/test/stack_origin.test.mjs (via fs.readFileSync). Both implementations MUST produce the same `expected` for each `stack`. Adding a case here runs it in both languages on next CI pass.",
+  "cases": [
+    {
+      "name": "typical_v8_frame_https",
+      "stack": ["    at emitBeacon (https://cdn.example.com/tracker.js:10:5)"],
+      "expected": "cdn.example.com"
+    },
+    {
+      "name": "typical_v8_frame_http",
+      "stack": ["    at x (http://plain.test/a.js:1:1)"],
+      "expected": "plain.test"
+    },
+    {
+      "name": "hush_extension_frame_is_skipped_by_anchor_miss",
+      "stack": [
+        "    at emit (chrome-extension://abcdef/mainworld.js:80:3)",
+        "    at fingerprint (https://trackers.test/fp.js:20:8)",
+        "    at main (https://site.test/app.js:5:1)"
+      ],
+      "expected": "trackers.test"
+    },
+    {
+      "name": "site_hosted_mainworld_js_is_not_mistaken_for_hush",
+      "stack": [
+        "    at emit (https://site.test/mainworld.js:80:3)",
+        "    at main (https://site.test/app.js:5:1)"
+      ],
+      "expected": "site.test"
+    },
+    {
+      "name": "empty_stack_returns_empty",
+      "stack": [],
+      "expected": ""
+    },
+    {
+      "name": "all_extension_frames_return_empty",
+      "stack": ["at emit (chrome-extension://abc/mainworld.js:1:1)"],
+      "expected": ""
+    },
+    {
+      "name": "frame_without_url_is_skipped",
+      "stack": [
+        "    at [native code]",
+        "    at realFrame (https://good.test/a.js:1:1)"
+      ],
+      "expected": "good.test"
+    },
+    {
+      "name": "punycode_host_returns_ascii_form",
+      "stack": ["at fn (https://xn--bcher-kva.example/a.js:1:1)"],
+      "expected": "xn--bcher-kva.example"
+    },
+    {
+      "name": "first_http_or_https_wins_within_a_frame",
+      "stack": ["at x (https://first.test/a.js:1:1) after http://second.test/b.js"],
+      "expected": "first.test"
+    }
+  ]
+}

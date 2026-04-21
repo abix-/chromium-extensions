@@ -431,7 +431,11 @@ pub(crate) fn detect_beacon(ctx: &DetectCtx, resources: &[Resource]) -> Vec<Sugg
             key: block_key(&value),
             layer: SuggestionLayer::Block,
             value: value.clone(),
-            reason: format!("sendBeacon target ({} beacon{} sent)", hits.len(), plural(hits.len())),
+            reason: format!(
+                "sendBeacon target ({} beacon{} sent)",
+                hits.len(),
+                plural(hits.len())
+            ),
             confidence: 95,
             count: hits.len() as u32,
             evidence: hits.iter().take(5).map(|h| h.url.clone()).collect(),
@@ -544,12 +548,7 @@ pub(crate) fn detect_first_party_telemetry(
             evidence: requests
                 .iter()
                 .take(5)
-                .map(|r| {
-                    format!(
-                        "{} ({}b, {})",
-                        r.url, r.transfer_size, r.initiator_type
-                    )
-                })
+                .map(|r| format!("{} ({}b, {})", r.url, r.transfer_size, r.initiator_type))
                 .collect(),
             from_frame,
             learn: LearnKind::FirstPartyTelemetry.text().to_string(),
@@ -704,10 +703,7 @@ pub(crate) fn detect_hidden_iframes(
 
 /// Detector 13: sticky overlays. Viewport-covering fixed-position
 /// elements; dedup per selector.
-pub(crate) fn detect_sticky_overlays(
-    ctx: &DetectCtx,
-    stickies: &[StickyHit],
-) -> Vec<Suggestion> {
+pub(crate) fn detect_sticky_overlays(ctx: &DetectCtx, stickies: &[StickyHit]) -> Vec<Suggestion> {
     let mut seen = std::collections::BTreeSet::new();
     let mut out = Vec::with_capacity(8);
     for s in stickies {
@@ -969,10 +965,7 @@ fn summarize_js_calls(js_calls: &[JsCall]) -> JsCallSummary {
 /// Detector 10: session-replay vendor globals.
 /// Detector 11: session-replay listener density.
 /// Detector 12: invisible-animation-loop (raf-waste).
-pub(crate) fn detect_from_js_calls(
-    ctx: &DetectCtx,
-    js_calls: &[JsCall],
-) -> Vec<Suggestion> {
+pub(crate) fn detect_from_js_calls(ctx: &DetectCtx, js_calls: &[JsCall]) -> Vec<Suggestion> {
     let s = summarize_js_calls(js_calls);
     let mut out = Vec::with_capacity(8);
 
@@ -1012,8 +1005,7 @@ pub(crate) fn detect_from_js_calls(
                 ctx,
                 &mut out,
                 origin,
-                "WebGL fingerprinting (read UNMASKED_RENDERER_WEBGL or _VENDOR_WEBGL)"
-                    .to_string(),
+                "WebGL fingerprinting (read UNMASKED_RENDERER_WEBGL or _VENDOR_WEBGL)".to_string(),
                 95,
                 "webgl-fp-hot",
                 LearnKind::WebglFpHot,
@@ -1106,7 +1098,9 @@ pub(crate) fn detect_from_js_calls(
             ),
             confidence: 95,
             count: cnt,
-            evidence: vec![format!("Global sentinel found in page: window.{sentinel_name}")],
+            evidence: vec![format!(
+                "Global sentinel found in page: window.{sentinel_name}"
+            )],
             from_frame: None,
             learn: LearnKind::ReplayVendor.text().to_string(),
             kind: LearnKind::ReplayVendor.tag().to_string(),
@@ -1165,9 +1159,7 @@ pub(crate) fn detect_from_js_calls(
                 ctx,
                 &mut out,
                 origin,
-                format!(
-                    "hardware-device API probe ({cnt} requestDevice / requestPort calls)"
-                ),
+                format!("hardware-device API probe ({cnt} requestDevice / requestPort calls)"),
                 90,
                 "device-api-probe",
                 LearnKind::DeviceApiProbe,
@@ -1189,9 +1181,7 @@ pub(crate) fn detect_from_js_calls(
                 ctx,
                 &mut out,
                 origin,
-                format!(
-                    "clipboard read (navigator.clipboard.readText called {cnt}x)"
-                ),
+                format!("clipboard read (navigator.clipboard.readText called {cnt}x)"),
                 95,
                 "clipboard-read",
                 LearnKind::ClipboardRead,
@@ -1378,12 +1368,7 @@ mod tests {
 
     #[test]
     fn beacon_skips_first_party_beacons() {
-        let resources = vec![resource(
-            "https://site.test/p",
-            "site.test",
-            "beacon",
-            0,
-        )];
+        let resources = vec![resource("https://site.test/p", "site.test", "beacon", 0)];
         let out = detect_beacon(&ctx("site.test"), &resources);
         assert!(out.is_empty());
     }
@@ -1709,11 +1694,16 @@ mod tests {
     #[test]
     fn navigator_fp_fires_at_10_distinct_properties() {
         let props = [
-            "Navigator.userAgent", "Navigator.platform",
-            "Navigator.language", "Navigator.languages",
-            "Navigator.hardwareConcurrency", "Navigator.deviceMemory",
-            "Navigator.maxTouchPoints", "Navigator.vendor",
-            "Navigator.webdriver", "Screen.colorDepth",
+            "Navigator.userAgent",
+            "Navigator.platform",
+            "Navigator.language",
+            "Navigator.languages",
+            "Navigator.hardwareConcurrency",
+            "Navigator.deviceMemory",
+            "Navigator.maxTouchPoints",
+            "Navigator.vendor",
+            "Navigator.webdriver",
+            "Screen.colorDepth",
         ];
         let calls: Vec<JsCall> = props
             .iter()
@@ -1726,7 +1716,11 @@ mod tests {
             })
             .collect();
         let out = detect_from_js_calls(&ctx("site.test"), &calls);
-        assert_eq!(out.len(), 1, "navigator-fp should fire at 10 distinct props");
+        assert_eq!(
+            out.len(),
+            1,
+            "navigator-fp should fire at 10 distinct props"
+        );
         assert_eq!(out[0].kind, "navigator-fp");
         assert_eq!(out[0].confidence, 80);
         assert_eq!(out[0].layer, SuggestionLayer::Block);
@@ -1736,10 +1730,14 @@ mod tests {
     fn navigator_fp_below_threshold_no_suggestion() {
         // 9 distinct properties — one below threshold.
         let props = [
-            "Navigator.userAgent", "Navigator.platform",
-            "Navigator.language", "Navigator.languages",
-            "Navigator.hardwareConcurrency", "Navigator.deviceMemory",
-            "Navigator.maxTouchPoints", "Navigator.vendor",
+            "Navigator.userAgent",
+            "Navigator.platform",
+            "Navigator.language",
+            "Navigator.languages",
+            "Navigator.hardwareConcurrency",
+            "Navigator.deviceMemory",
+            "Navigator.maxTouchPoints",
+            "Navigator.vendor",
             "Navigator.webdriver",
         ];
         let calls: Vec<JsCall> = props
@@ -1945,10 +1943,7 @@ mod tests {
         let calls: Vec<JsCall> = (0..30)
             .map(|i| {
                 let secs = i as i64; // 0..29s
-                let t = format!(
-                    "2026-04-19T12:00:{:02}.000Z",
-                    secs.min(59)
-                );
+                let t = format!("2026-04-19T12:00:{:02}.000Z", secs.min(59));
                 JsCall {
                     kind: "canvas-draw".into(),
                     t,
@@ -1970,10 +1965,7 @@ mod tests {
         let calls: Vec<JsCall> = (0..30)
             .map(|i| {
                 let secs = i as i64;
-                let t = format!(
-                    "2026-04-19T12:00:{:02}.000Z",
-                    secs.min(59)
-                );
+                let t = format!("2026-04-19T12:00:{:02}.000Z", secs.min(59));
                 JsCall {
                     kind: "canvas-draw".into(),
                     t,

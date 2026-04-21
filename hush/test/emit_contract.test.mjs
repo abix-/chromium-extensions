@@ -276,15 +276,19 @@ test("font-fp preserves font family and text fields", () => {
   }
 });
 
-test("listener-added preserves eventType for replay-like listeners on document", () => {
+test("listener-added preserves eventType for hooked interaction + attention listeners", () => {
   const { ctx, captured } = makeContext();
   ctx.document.addEventListener("mousemove", () => {});
   ctx.document.addEventListener("keydown", () => {});
   ctx.document.addEventListener("click", () => {});
-  ctx.document.addEventListener("blur", () => {}); // not replay-relevant
+  // `blur` is in ATTENTION_EVENT_TYPES (page-lifecycle/engagement
+  // signal), so it's hooked too. An earlier version of this test
+  // expected blur to be ignored; that predates the attention-
+  // tracking detector.
+  ctx.document.addEventListener("blur", () => {});
   const listenerEvents = captured.filter(c => c.kind === "listener-added");
   const types = listenerEvents.map(e => e.eventType).sort();
-  assert.deepStrictEqual([...types], ["click", "keydown", "mousemove"]);
+  assert.deepStrictEqual([...types], ["blur", "click", "keydown", "mousemove"]);
   for (const e of listenerEvents) {
     assert.ok(Array.isArray(e.stack));
   }

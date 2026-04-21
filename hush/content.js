@@ -428,12 +428,14 @@
       document.documentElement.dataset.hushSpoof = cfg.spoof.join(",");
     } catch (e) { /* documentElement not ready yet */ }
   }
-  // Neuter and silence rules carry uBlock-style URL filters that
-  // mainworld matches against the initiating-script stack origin.
-  // Same write-and-read-at-call-time pattern as spoof — mainworld
-  // reads the dataset every addEventListener / fetch / XHR / beacon
-  // call so ordering between content-script and mainworld installs
-  // doesn't matter.
+  // Neuter and silence rules carry host-anchor patterns (the
+  // `||host^` subset of uBlock syntax, plus `*` wildcards and
+  // bare substring) that mainworld matches against the
+  // initiating-script stack origin. Same write-and-read-at-call-
+  // time pattern as spoof -- mainworld reads the dataset every
+  // addEventListener / fetch / XHR / beacon call so ordering
+  // between content-script and mainworld installs doesn't matter.
+  // See mainworld.js::matchesHostPattern for the exact grammar.
   if (cfg.neuter.length) {
     try {
       document.documentElement.dataset.hushNeuter = cfg.neuter.join(",");

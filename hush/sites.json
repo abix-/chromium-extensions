@@ -1,4 +1,14 @@
 {
+  "__global__": {
+    "spoof": [
+      { "value": "sendbeacon", "tags": ["kill-switch"], "comment": "sendBeacon returns true without firing. Literal page-unload telemetry API, no user-side benefit." },
+      { "value": "clipboard-read", "tags": ["kill-switch"], "comment": "clipboard.readText rejects with NotAllowedError. Paste-sniff kill." },
+      { "value": "bluetooth", "tags": ["kill-switch"], "comment": "Bluetooth.requestDevice rejects. Remove if you use WebBluetooth." },
+      { "value": "usb", "tags": ["kill-switch"], "comment": "USB.requestDevice rejects. Remove if you use WebUSB." },
+      { "value": "hid", "tags": ["kill-switch"], "comment": "HID.requestDevice rejects. Remove if you use WebHID." },
+      { "value": "serial", "tags": ["kill-switch"], "comment": "Serial.requestPort rejects. Remove if you use WebSerial." }
+    ]
+  },
   "example.com": {
     "hide": [
       { "value": ".popup" },

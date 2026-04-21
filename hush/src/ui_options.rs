@@ -15,8 +15,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 /// Initial snapshot `options.js` hands in at mount time. Keeps the
@@ -381,9 +381,7 @@ fn ProfileTools(status: RwSignal<Option<StatusMsg>>) -> impl IntoView {
                 Ok(v) => {
                     let text = v.as_string().unwrap_or_default();
                     if let Err(e) = handle_profile_import(&text, status).await {
-                        let msg = e
-                            .as_string()
-                            .unwrap_or_else(|| format!("{:?}", e));
+                        let msg = e.as_string().unwrap_or_else(|| format!("{:?}", e));
                         set_options_status(format!("Import failed: {msg}"), false);
                     }
                 }
@@ -402,22 +400,18 @@ fn ProfileTools(status: RwSignal<Option<StatusMsg>>) -> impl IntoView {
         let Some(window) = web_sys::window() else {
             return;
         };
-        let name = match window
-            .prompt_with_message_and_default("Profile name:", "my-profile")
-        {
+        let name = match window.prompt_with_message_and_default("Profile name:", "my-profile") {
             Ok(Some(n)) => n.trim().to_string(),
             _ => return,
         };
         if name.is_empty() {
             return;
         }
-        let description = match window.prompt_with_message_and_default(
-            "Profile description (optional):",
-            "",
-        ) {
-            Ok(Some(d)) => d.trim().to_string(),
-            _ => String::new(),
-        };
+        let description =
+            match window.prompt_with_message_and_default("Profile description (optional):", "") {
+                Ok(Some(d)) => d.trim().to_string(),
+                _ => String::new(),
+            };
         busy.set(true);
         let name_for_file = sanitize_filename(&name);
         spawn_local(async move {
@@ -430,22 +424,20 @@ fn ProfileTools(status: RwSignal<Option<StatusMsg>>) -> impl IntoView {
                 }
             };
             let profile = Profile {
-                header: ProfileHeader { name, description, version: 1 },
+                header: ProfileHeader {
+                    name,
+                    description,
+                    version: 1,
+                },
                 config,
             };
             match profile_to_pretty_json(&profile) {
                 Ok(json) => {
                     let filename = format!("hush-profile-{name_for_file}.json");
                     if let Err(e) = trigger_json_download(&json, &filename) {
-                        set_options_status(
-                            format!("Export failed: {:?}", e),
-                            false,
-                        );
+                        set_options_status(format!("Export failed: {:?}", e), false);
                     } else {
-                        set_options_status(
-                            format!("Downloaded {filename}"),
-                            true,
-                        );
+                        set_options_status(format!("Downloaded {filename}"), true);
                     }
                 }
                 Err(e) => {
@@ -456,11 +448,45 @@ fn ProfileTools(status: RwSignal<Option<StatusMsg>>) -> impl IntoView {
         });
     };
 
-    let _ = status;
+    let on_starter_change = move |ev: web_sys::Event| {
+        if busy.get() {
+            return;
+        }
+        let Some(select) = ev
+            .target()
+            .and_then(|t| t.dyn_into::<web_sys::HtmlSelectElement>().ok())
+        else {
+            return;
+        };
+        let value = select.value();
+        // First option is the placeholder; empty value -> no-op.
+        if value.is_empty() {
+            return;
+        }
+        // Reset the <select> back to the placeholder so picking the
+        // same starter twice still fires `change`.
+        select.set_value("");
+        let path = format!("profiles/{value}.json");
+        busy.set(true);
+        spawn_local(async move {
+            match chrome_bridge::fetch_extension_text(&path).await {
+                Ok(text) => {
+                    if let Err(e) = handle_profile_import(&text, status).await {
+                        let msg = e.as_string().unwrap_or_else(|| format!("{:?}", e));
+                        set_options_status(format!("Starter import failed: {msg}"), false);
+                    }
+                }
+                Err(e) => {
+                    set_options_status(format!("Starter load failed: {:?}", e), false);
+                }
+            }
+            busy.set(false);
+        });
+    };
 
     view! {
         <div class="rust-profile-toolbar"
-             style="display:flex; gap: 8px; margin-top: 8px; align-items: center;">
+             style="display:flex; gap: 8px; margin-top: 8px; align-items: center; flex-wrap: wrap;">
             <button on:click=on_import_click
                     disabled=move || busy.get()
                     style="padding: 6px 14px; font-size: 13px; cursor: pointer;
@@ -475,8 +501,19 @@ fn ProfileTools(status: RwSignal<Option<StatusMsg>>) -> impl IntoView {
                            border-radius: 5px;">
                 "Export as profile..."
             </button>
+            <select on:change=on_starter_change
+                    disabled=move || busy.get()
+                    title="Shipped starter profiles. Load merges into your current rules; nothing is overwritten."
+                    style="padding: 6px 10px; font-size: 13px; cursor: pointer;
+                           background: #fff; border: 1px solid #ccc;
+                           border-radius: 5px;">
+                <option value="">"Load starter profile..."</option>
+                <option value="brave-supplement">"Brave supplement"</option>
+                <option value="news-site-baseline">"News-site baseline"</option>
+                <option value="social-media-declutter">"Social-media declutter"</option>
+            </select>
             <span style="color:#888; font-size:12px;">
-                "Profiles merge — they won't overwrite your existing rules."
+                "Profiles merge - they won't overwrite your existing rules."
             </span>
             <input type="file"
                    id=file_input_id
@@ -494,9 +531,8 @@ async fn handle_profile_import(
     text: &str,
     _status: RwSignal<Option<StatusMsg>>,
 ) -> Result<(), JsValue> {
-    let profile: Profile = parse_profile_json(text).map_err(|e| {
-        JsValue::from_str(&format!("not a valid Hush profile: {:?}", e))
-    })?;
+    let profile: Profile = parse_profile_json(text)
+        .map_err(|e| JsValue::from_str(&format!("not a valid Hush profile: {:?}", e)))?;
     // Preview the merge without writing, so the user can confirm.
     let current = chrome_bridge::get_popup_storage().await?.config;
     let mut preview = current.clone();
@@ -541,16 +577,14 @@ async fn handle_profile_import(
 /// avoiding a direct `serde_json` runtime dependency.
 fn parse_profile_json(text: &str) -> Result<Profile, JsValue> {
     let parsed = js_sys::JSON::parse(text)?;
-    serde_wasm_bindgen::from_value(parsed)
-        .map_err(|e| JsValue::from_str(&format!("{e}")))
+    serde_wasm_bindgen::from_value(parsed).map_err(|e| JsValue::from_str(&format!("{e}")))
 }
 
 /// Serialize a profile to pretty JSON via `chrome_bridge::to_js` +
 /// `JSON.stringify`. Matches the existing serialization path for
 /// config writes so we don't drift on map-vs-object handling.
 fn profile_to_pretty_json(profile: &Profile) -> Result<String, JsValue> {
-    let js = chrome_bridge::to_js(profile)
-        .map_err(|e| JsValue::from_str(&format!("{e}")))?;
+    let js = chrome_bridge::to_js(profile).map_err(|e| JsValue::from_str(&format!("{e}")))?;
     let pretty = js_sys::JSON::stringify_with_replacer_and_space(
         &js,
         &JsValue::NULL,
@@ -876,8 +910,7 @@ impl RuleHealth {
         match self {
             Self::Disabled => "disabled (evaluator skips this rule)".to_string(),
             Self::Broken => {
-                "invalid selector: threw on querySelectorAll / element.matches"
-                    .to_string()
+                "invalid selector: threw on querySelectorAll / element.matches".to_string()
             }
             Self::Shadowed => match shadowed_by {
                 Some(a) => format!("shadowed by allow: {a}"),
@@ -990,12 +1023,7 @@ fn append_rule(cfg: &mut Config, scope: &str, action: LayerKind, entry: RuleEntr
 
 /// Pop the rule at `(scope, action, idx)` out of its bucket. Returns
 /// `None` if the bucket has fewer entries than `idx`.
-fn take_rule(
-    cfg: &mut Config,
-    scope: &str,
-    action: LayerKind,
-    idx: usize,
-) -> Option<RuleEntry> {
+fn take_rule(cfg: &mut Config, scope: &str, action: LayerKind, idx: usize) -> Option<RuleEntry> {
     let site = cfg.get_mut(scope)?;
     let bucket = action.modify(site);
     if idx >= bucket.len() {
@@ -1029,8 +1057,7 @@ fn RulesTable(initial: Config) -> impl IntoView {
         let broken = chrome_bridge::get_all_broken_selectors()
             .await
             .unwrap_or_default();
-        let mut hits: std::collections::HashMap<String, u32> =
-            std::collections::HashMap::new();
+        let mut hits: std::collections::HashMap<String, u32> = std::collections::HashMap::new();
         for ev in events {
             *hits.entry(ev.rule_id).or_insert(0) += 1;
         }
@@ -1102,8 +1129,7 @@ fn RulesTable(initial: Config) -> impl IntoView {
             .into_iter()
             .enumerate()
             .map(|(flat_idx, row)| {
-                let (status, shadowed_by, hits) =
-                    h_snap.health_for(&row, &all_allows);
+                let (status, shadowed_by, hits) = h_snap.health_for(&row, &all_allows);
                 view! {
                     <RuleRow
                         config=config
@@ -1179,10 +1205,7 @@ fn FilterBar(
         let sites = config.with(site_keys_for_scope_select);
         let mut out: Vec<(String, String)> = vec![
             ("".into(), "All scopes".into()),
-            (
-                crate::types::GLOBAL_SCOPE_KEY.into(),
-                "Global".into(),
-            ),
+            (crate::types::GLOBAL_SCOPE_KEY.into(), "Global".into()),
         ];
         for s in sites {
             out.push((s.clone(), s));
@@ -1198,8 +1221,7 @@ fn FilterBar(
     };
 
     let action_options = move || {
-        let mut out: Vec<(String, String)> =
-            vec![("".into(), "All actions".into())];
+        let mut out: Vec<(String, String)> = vec![("".into(), "All actions".into())];
         for a in LayerKind::ALL {
             out.push((a.as_str().into(), a.short_label().into()));
         }
@@ -1257,7 +1279,13 @@ fn RuleRow(
     shadowed_by: Option<String>,
     hits: u32,
 ) -> impl IntoView {
-    let FlatRow { scope, action, idx, bucket_len, entry } = row;
+    let FlatRow {
+        scope,
+        action,
+        idx,
+        bucket_len,
+        entry,
+    } = row;
     let scope_c = scope.clone();
     let val_c = entry.value.clone();
     let tags_c = entry.tags.join(", ");
@@ -1268,10 +1296,8 @@ fn RuleRow(
         let current_scope = scope.clone();
         move || {
             let existing = config.with(site_keys_for_scope_select);
-            let mut out: Vec<(String, String)> = vec![(
-                crate::types::GLOBAL_SCOPE_KEY.into(),
-                "Global".into(),
-            )];
+            let mut out: Vec<(String, String)> =
+                vec![(crate::types::GLOBAL_SCOPE_KEY.into(), "Global".into())];
             for s in existing {
                 out.push((s.clone(), s));
             }
@@ -1362,7 +1388,11 @@ fn RuleRow(
                 if let Some(site) = c.get_mut(&s)
                     && let Some(row) = action.modify(site).get_mut(idx)
                 {
-                    row.comment = if raw.is_empty() { None } else { Some(raw.clone()) };
+                    row.comment = if raw.is_empty() {
+                        None
+                    } else {
+                        Some(raw.clone())
+                    };
                 }
             });
             persist_config(config);
@@ -1379,10 +1409,9 @@ fn RuleRow(
                     Some(w) => w,
                     None => return,
                 };
-                let input = match window.prompt_with_message_and_default(
-                    "New site hostname (e.g. example.com):",
-                    "",
-                ) {
+                let input = match window
+                    .prompt_with_message_and_default("New site hostname (e.g. example.com):", "")
+                {
                     Ok(Some(v)) => v.trim().to_string(),
                     _ => return,
                 };
@@ -1473,8 +1502,16 @@ fn RuleRow(
 
     let up_disabled = idx == 0;
     let down_disabled = idx + 1 >= bucket_len;
-    let row_class = if disabled { "rule-row disabled" } else { "rule-row" };
-    let match_class = if disabled { "match-input strike" } else { "match-input" };
+    let row_class = if disabled {
+        "rule-row disabled"
+    } else {
+        "rule-row"
+    };
+    let match_class = if disabled {
+        "match-input strike"
+    } else {
+        "match-input"
+    };
     let _ = scope_c;
 
     view! {
@@ -1559,7 +1596,6 @@ fn input_value(ev: &web_sys::Event) -> String {
         .unwrap_or_default()
 }
 
-
 /// Persist the current `Config` signal value to
 /// `chrome.storage.local["config"]`. Fire-and-forget - any storage
 /// errors surface through the status banner so the user can retry.
@@ -1632,9 +1668,7 @@ fn JsonEditor() -> impl IntoView {
                     }
                 }
                 Err(e) => {
-                    let msg = e
-                        .as_string()
-                        .unwrap_or_else(|| format!("{:?}", e));
+                    let msg = e.as_string().unwrap_or_else(|| format!("{:?}", e));
                     set_options_status(format!("Apply failed: {}", msg), false);
                     busy.set(false);
                 }
@@ -1950,7 +1984,10 @@ fn SettingsToggles(
                     } else {
                         "Behavioral suggestions OFF"
                     };
-                    status.set(Some(StatusMsg { text: text.to_string(), ok: true }));
+                    status.set(Some(StatusMsg {
+                        text: text.to_string(),
+                        ok: true,
+                    }));
                     set_auto_hide(status);
                 }
                 Err(e) => {
@@ -1975,7 +2012,10 @@ fn SettingsToggles(
                     } else {
                         "Verbose logging OFF"
                     };
-                    status.set(Some(StatusMsg { text: text.to_string(), ok: true }));
+                    status.set(Some(StatusMsg {
+                        text: text.to_string(),
+                        ok: true,
+                    }));
                     set_auto_hide(status);
                 }
                 Err(e) => {
@@ -2049,9 +2089,7 @@ fn set_auto_hide(status: RwSignal<Option<StatusMsg>>) {
         return;
     };
     let cb = Closure::<dyn Fn()>::new(move || status.set(None));
-    let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
-        cb.as_ref().unchecked_ref(),
-        3500,
-    );
+    let _ = window
+        .set_timeout_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), 3500);
     cb.forget();
 }

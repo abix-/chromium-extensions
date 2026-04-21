@@ -1,0 +1,120 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  hush-rust:
+    name: hush (rust)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hush
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install rust toolchain
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: "1.95"
+          targets: wasm32-unknown-unknown
+          components: rustfmt
+
+      - name: cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: hush
+
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+
+      # clippy intentionally not gated yet: 36 pre-existing lints
+      # (redundant_locals, clone_on_copy, collapsible_if, deprecated
+      # criterion::black_box in benches, etc.) need cleanup before
+      # `-D warnings` can go green. Tracked as P2 in docs/todo.md.
+
+      - name: unit tests
+        run: cargo test --lib
+
+      - name: wasm target check
+        run: cargo check --target wasm32-unknown-unknown
+
+      - name: install wasm-pack
+        run: cargo install --locked wasm-pack
+
+      - name: wasm-pack build
+        run: wasm-pack build --target web
+
+  filter-anything-everywhere:
+    name: filter-anything-everywhere (ts)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: filter-anything-everywhere
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: filter-anything-everywhere/package-lock.json
+
+      - name: install
+        run: npm ci
+
+      # lint intentionally skipped: .eslintrc.cjs predates eslint 9/10
+      # flat-config; migration to eslint.config.js is tracked as P2
+      # in docs/todo.md.
+
+      - name: test
+        run: npm test
+
+      # Build uses PowerShell on Windows; on Linux CI invoke rollup
+      # directly so we still verify the bundle compiles.
+      - name: build
+        run: npx --no-install rollup -c
+
+  zoom-extension:
+    name: zoom-extension (js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: zoom-extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: syntax check
+        run: node --check content.js && node --check options.js
+
+  hush-js:
+    name: hush (js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: hush
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: syntax check
+        run: node --check background.js && node --check content.js && node --check mainworld.js && node --check popup.js && node --check options.js
+
+      - name: js tests
+        run: node --test 'test/*.test.mjs'

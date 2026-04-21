@@ -19,17 +19,17 @@
 use crate::canon::pattern_keyword;
 use crate::compute::compute_suggestions as rust_compute_suggestions;
 use crate::types::{
-    Allowlist, BehaviorState, BlockedUrl, Config, FirewallEvent, FirewallEvidence, IframeHit,
-    JsCall, RemovedElement, Resource, StickyHit, Suggestion, GLOBAL_SCOPE_KEY,
+    Allowlist, BehaviorState, BlockedUrl, Config, FirewallEvent, FirewallEvidence,
+    GLOBAL_SCOPE_KEY, IframeHit, JsCall, RemovedElement, Resource, StickyHit, Suggestion,
 };
 use indexmap::IndexMap;
 use js_sys::{Array, Function, Object, Promise, Reflect};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use wasm_bindgen_futures::{spawn_local, JsFuture};
+use wasm_bindgen::prelude::*;
+use wasm_bindgen_futures::{JsFuture, spawn_local};
 
 // ---------------------------------------------------------------------------
 // Constants mirror the JS side.
@@ -315,7 +315,10 @@ async fn seed_config_if_empty() -> Result<(), JsValue> {
     }
     let url_fn = chrome_runtime_get_url()?;
     let url = url_fn
-        .call1(&chrome_root()?.dyn_into::<Object>()?.into(), &JsValue::from_str("sites.json"))?
+        .call1(
+            &chrome_root()?.dyn_into::<Object>()?.into(),
+            &JsValue::from_str("sites.json"),
+        )?
         .as_string()
         .ok_or_else(|| JsValue::from_str("chrome.runtime.getURL returned non-string"))?;
     let g = global_scope();
@@ -427,7 +430,9 @@ async fn sync_dynamic_rules() -> Result<(), JsValue> {
         if !pending {
             break;
         }
-        let _ = do_sync_dynamic_rules().await;
+        if let Err(e) = do_sync_dynamic_rules().await {
+            log_error(&format!("retry sync_dynamic_rules failed: {:?}", e));
+        }
     }
     res
 }
@@ -486,7 +491,11 @@ async fn do_sync_dynamic_rules() -> Result<(), JsValue> {
                     },
                 );
                 let rule = Object::new();
-                Reflect::set(&rule, &JsValue::from_str("id"), &JsValue::from_f64(id as f64))?;
+                Reflect::set(
+                    &rule,
+                    &JsValue::from_str("id"),
+                    &JsValue::from_f64(id as f64),
+                )?;
                 Reflect::set(
                     &rule,
                     &JsValue::from_str("priority"),
@@ -536,7 +545,10 @@ async fn do_sync_dynamic_rules() -> Result<(), JsValue> {
 
 fn chrome_dnr() -> Result<JsValue, JsValue> {
     let chrome = chrome_root()?;
-    Ok(Reflect::get(&chrome, &JsValue::from_str("declarativeNetRequest"))?)
+    Ok(Reflect::get(
+        &chrome,
+        &JsValue::from_str("declarativeNetRequest"),
+    )?)
 }
 
 async fn rehydrate_rule_patterns() {
@@ -658,13 +670,11 @@ fn schedule_persist_firewall_log() {
         || {
             STATE.with(|s| s.borrow_mut().persist_firewall_log_scheduled = false);
             spawn_local(async {
-                let snapshot: Vec<FirewallEvent> = STATE.with(|s| {
-                    s.borrow().firewall_log.iter().cloned().collect()
-                });
+                let snapshot: Vec<FirewallEvent> =
+                    STATE.with(|s| s.borrow().firewall_log.iter().cloned().collect());
                 match crate::chrome_bridge::to_js(&snapshot) {
                     Ok(v) => {
-                        if let Err(e) =
-                            storage_session_set_one(SESSION_FIREWALL_LOG_KEY, &v).await
+                        if let Err(e) = storage_session_set_one(SESSION_FIREWALL_LOG_KEY, &v).await
                         {
                             log_error(&format!("persist firewallLog failed: {:?}", e));
                         }
@@ -728,7 +738,11 @@ fn update_badge(tab_id: i32) {
     if sugg_count > 0 {
         set_badge(tab_id, "!", "#e8a200");
     } else {
-        let text = if total > 0 { total.to_string() } else { String::new() };
+        let text = if total > 0 {
+            total.to_string()
+        } else {
+            String::new()
+        };
         set_badge(tab_id, &text, "#666");
     }
 }
@@ -740,13 +754,21 @@ fn set_badge(tab_id: i32, text: &str, color: &str) {
     };
     if let Ok(set_text) = get_fn_from(&action, "setBadgeText") {
         let arg = Object::new();
-        let _ = Reflect::set(&arg, &JsValue::from_str("tabId"), &JsValue::from_f64(tab_id as f64));
+        let _ = Reflect::set(
+            &arg,
+            &JsValue::from_str("tabId"),
+            &JsValue::from_f64(tab_id as f64),
+        );
         let _ = Reflect::set(&arg, &JsValue::from_str("text"), &JsValue::from_str(text));
         let _ = set_text.call1(&action, &arg.into());
     }
     if let Ok(set_color) = get_fn_from(&action, "setBadgeBackgroundColor") {
         let arg = Object::new();
-        let _ = Reflect::set(&arg, &JsValue::from_str("tabId"), &JsValue::from_f64(tab_id as f64));
+        let _ = Reflect::set(
+            &arg,
+            &JsValue::from_str("tabId"),
+            &JsValue::from_f64(tab_id as f64),
+        );
         let _ = Reflect::set(&arg, &JsValue::from_str("color"), &JsValue::from_str(color));
         let _ = set_color.call1(&action, &arg.into());
     }
@@ -808,7 +830,10 @@ async fn hydrate_tab_stats() {
             }
         }
     });
-    log(&format!("hydrated tabStats for {} tab(s) from session storage", n));
+    log(&format!(
+        "hydrated tabStats for {} tab(s) from session storage",
+        n
+    ));
 }
 
 // ---------------------------------------------------------------------------
@@ -967,10 +992,7 @@ struct RuleDiagnostic {
 // ---------------------------------------------------------------------------
 // Suggestions bridge.
 
-async fn compute_suggestions_for(
-    state: &BehaviorState,
-    config: &Config,
-) -> Vec<Suggestion> {
+async fn compute_suggestions_for(state: &BehaviorState, config: &Config) -> Vec<Suggestion> {
     let allowlist = STATE.with(|s| s.borrow().allowlist_cache.clone());
     rust_compute_suggestions(state, config, &allowlist)
 }
@@ -996,7 +1018,11 @@ async fn recompute_all_tab_suggestions() {
         STATE.with(|s| {
             if let Some(b) = s.borrow_mut().tab_behavior.get_mut(&tab_id) {
                 if b.suggestions.len() != fresh.len()
-                    || !b.suggestions.iter().zip(fresh.iter()).all(|(a, b)| a.key == b.key)
+                    || !b
+                        .suggestions
+                        .iter()
+                        .zip(fresh.iter())
+                        .all(|(a, b)| a.key == b.key)
                 {
                     b.suggestions = fresh;
                     mutated.push(tab_id);
@@ -1018,11 +1044,27 @@ fn install_on_installed() -> Result<(), JsValue> {
     let cb = Closure::<dyn Fn(JsValue)>::new(|_details: JsValue| {
         set_default_badge_color();
         spawn_local(async {
-            let _ = refresh_debug_flag().await;
-            let _ = seed_config_if_empty().await;
-            let _ = seed_allowlist_if_empty().await;
-            let _ = load_allowlist().await;
-            let _ = sync_dynamic_rules().await;
+            if let Err(e) = refresh_debug_flag().await {
+                log_error(&format!("onInstalled: refresh_debug_flag failed: {:?}", e));
+            }
+            if let Err(e) = seed_config_if_empty().await {
+                log_error(&format!(
+                    "onInstalled: seed_config_if_empty failed: {:?}",
+                    e
+                ));
+            }
+            if let Err(e) = seed_allowlist_if_empty().await {
+                log_error(&format!(
+                    "onInstalled: seed_allowlist_if_empty failed: {:?}",
+                    e
+                ));
+            }
+            if let Err(e) = load_allowlist().await {
+                log_error(&format!("onInstalled: load_allowlist failed: {:?}", e));
+            }
+            if let Err(e) = sync_dynamic_rules().await {
+                log_error(&format!("onInstalled: sync_dynamic_rules failed: {:?}", e));
+            }
         });
     });
     add_listener(&on_installed, &cb)?;
@@ -1035,9 +1077,15 @@ fn install_on_startup() -> Result<(), JsValue> {
     let cb = Closure::<dyn Fn()>::new(|| {
         set_default_badge_color();
         spawn_local(async {
-            let _ = refresh_debug_flag().await;
-            let _ = load_allowlist().await;
-            let _ = sync_dynamic_rules().await;
+            if let Err(e) = refresh_debug_flag().await {
+                log_error(&format!("onStartup: refresh_debug_flag failed: {:?}", e));
+            }
+            if let Err(e) = load_allowlist().await {
+                log_error(&format!("onStartup: load_allowlist failed: {:?}", e));
+            }
+            if let Err(e) = sync_dynamic_rules().await {
+                log_error(&format!("onStartup: sync_dynamic_rules failed: {:?}", e));
+            }
         });
     });
     add_listener(&on_startup, &cb)?;
@@ -1052,7 +1100,11 @@ fn set_default_badge_color() {
     };
     if let Ok(set_color) = get_fn_from(&action, "setBadgeBackgroundColor") {
         let arg = Object::new();
-        let _ = Reflect::set(&arg, &JsValue::from_str("color"), &JsValue::from_str("#666"));
+        let _ = Reflect::set(
+            &arg,
+            &JsValue::from_str("color"),
+            &JsValue::from_str("#666"),
+        );
         let _ = set_color.call1(&action, &arg.into());
     }
 }
@@ -1091,7 +1143,12 @@ fn install_storage_on_changed() -> Result<(), JsValue> {
             .unwrap_or(true)
         {
             spawn_local(async {
-                let _ = sync_dynamic_rules().await;
+                if let Err(e) = sync_dynamic_rules().await {
+                    log_error(&format!(
+                        "config-changed: sync_dynamic_rules failed: {:?}",
+                        e
+                    ));
+                }
                 recompute_all_tab_suggestions().await;
             });
         }
@@ -1101,8 +1158,14 @@ fn install_storage_on_changed() -> Result<(), JsValue> {
             .unwrap_or(true)
         {
             spawn_local(async {
-                let _ = load_allowlist().await;
-                log("allowlist updated");
+                if let Err(e) = load_allowlist().await {
+                    log_error(&format!(
+                        "allowlist-changed: load_allowlist failed: {:?}",
+                        e
+                    ));
+                } else {
+                    log("allowlist updated");
+                }
             });
         }
     });
@@ -1195,7 +1258,11 @@ fn install_dnr_on_rule_matched_debug() -> Result<(), JsValue> {
             if let Some(id) = rule_id {
                 let st = s.borrow();
                 if let Some(meta) = st.rule_patterns.get(&id) {
-                    return (meta.pattern.clone(), meta.domain.clone(), meta.action.clone());
+                    return (
+                        meta.pattern.clone(),
+                        meta.domain.clone(),
+                        meta.action.clone(),
+                    );
                 }
             }
             (String::new(), String::new(), "block".to_string())
@@ -1407,9 +1474,7 @@ fn handle_stats(msg: &JsValue, sender: &JsValue) {
         .unwrap_or_default();
     let broken = Reflect::get(msg, &JsValue::from_str("brokenSelectors"))
         .ok()
-        .and_then(|v| {
-            serde_wasm_bindgen::from_value::<crate::types::BrokenSelectors>(v).ok()
-        });
+        .and_then(|v| serde_wasm_bindgen::from_value::<crate::types::BrokenSelectors>(v).ok());
     // Snapshot the new removed events before moving them into stats;
     // the firewall-log emission below needs the per-element detail.
     let remove_events: Vec<RemovedElement> = new_removed.clone();
@@ -1507,7 +1572,11 @@ fn handle_stats(msg: &JsValue, sender: &JsValue) {
         push_firewall_event(
             tab_id,
             FirewallEvent {
-                t: if ev.t.is_empty() { iso_now() } else { ev.t.clone() },
+                t: if ev.t.is_empty() {
+                    iso_now()
+                } else {
+                    ev.t.clone()
+                },
                 rule_id: crate::types::rule_id("hide", &scope, &ev.selector),
                 action: "hide".to_string(),
                 scope,
@@ -1821,7 +1890,11 @@ fn handle_get_all_broken_selectors(send_response: &JsValue) {
         }
     });
     let reply = Object::new();
-    let broken = crate::types::BrokenSelectors { remove, hide, allow };
+    let broken = crate::types::BrokenSelectors {
+        remove,
+        hide,
+        allow,
+    };
     if let Ok(v) = crate::chrome_bridge::to_js(&broken) {
         let _ = Reflect::set(&reply, &JsValue::from_str("broken"), &v);
     }
@@ -2023,10 +2096,7 @@ fn handle_accept_suggestion(msg: &JsValue, send_response: JsValue) {
             for (tab_id, b) in st.tab_behavior.iter_mut() {
                 let before = b.suggestions.len();
                 b.suggestions.retain(|sg| {
-                    !(layer_enum
-                        .map(|l| sg.layer == l)
-                        .unwrap_or(false)
-                        && sg.value == value)
+                    !(layer_enum.map(|l| sg.layer == l).unwrap_or(false) && sg.value == value)
                 });
                 if b.suggestions.len() != before {
                     out.push(*tab_id);
@@ -2114,13 +2184,12 @@ fn handle_dismiss_suggestion(msg: &JsValue, sender: &JsValue, send_response: &Js
         .ok()
         .and_then(|v| v.as_string())
         .unwrap_or_default();
-    if tab_id.is_none() || key.is_empty() {
+    let Some(tab_id) = tab_id.filter(|_| !key.is_empty()) else {
         let reply = Object::new();
         let _ = Reflect::set(&reply, &JsValue::from_str("ok"), &JsValue::FALSE);
         call_send_response(send_response, &reply.into());
         return;
-    }
-    let tab_id = tab_id.unwrap();
+    };
     get_behavior_mut(tab_id, |state| {
         if !state.dismissed.iter().any(|k| k == &key) {
             state.dismissed.push(key.clone());
@@ -2190,9 +2259,14 @@ fn handle_get_debug_info(msg: &JsValue, send_response: JsValue) {
                 let _ = Reflect::set(
                     &rule,
                     &JsValue::from_str("id"),
-                    &id.map(|v| JsValue::from_f64(v as f64)).unwrap_or(JsValue::NULL),
+                    &id.map(|v| JsValue::from_f64(v as f64))
+                        .unwrap_or(JsValue::NULL),
                 );
-                let _ = Reflect::set(&rule, &JsValue::from_str("pattern"), &JsValue::from_str(&pattern));
+                let _ = Reflect::set(
+                    &rule,
+                    &JsValue::from_str("pattern"),
+                    &JsValue::from_str(&pattern),
+                );
                 let _ = Reflect::set(
                     &rule,
                     &JsValue::from_str("sourceDomain"),
@@ -2204,7 +2278,11 @@ fn handle_get_debug_info(msg: &JsValue, send_response: JsValue) {
         }
 
         let reply = Object::new();
-        let _ = Reflect::set(&reply, &JsValue::from_str("version"), &JsValue::from_str(&version));
+        let _ = Reflect::set(
+            &reply,
+            &JsValue::from_str("version"),
+            &JsValue::from_str(&version),
+        );
         let _ = Reflect::set(
             &reply,
             &JsValue::from_str("tabId"),
@@ -2280,7 +2358,11 @@ fn handle_get_debug_info(msg: &JsValue, send_response: JsValue) {
                 let rb = Object::new();
                 let _ = Reflect::set(&rb, &JsValue::from_str("t"), &JsValue::from_str(&b.t));
                 let url_trunc: String = b.url.chars().take(200).collect();
-                let _ = Reflect::set(&rb, &JsValue::from_str("url"), &JsValue::from_str(&url_trunc));
+                let _ = Reflect::set(
+                    &rb,
+                    &JsValue::from_str("url"),
+                    &JsValue::from_str(&url_trunc),
+                );
                 let _ = Reflect::set(
                     &rb,
                     &JsValue::from_str("pattern"),
@@ -2289,7 +2371,10 @@ fn handle_get_debug_info(msg: &JsValue, send_response: JsValue) {
                 let _ = Reflect::set(
                     &rb,
                     &JsValue::from_str("type"),
-                    &b.resource_type.as_deref().map(JsValue::from_str).unwrap_or(JsValue::NULL),
+                    &b.resource_type
+                        .as_deref()
+                        .map(JsValue::from_str)
+                        .unwrap_or(JsValue::NULL),
                 );
                 recent_blocks_arr.push(&rb);
             }
@@ -2298,7 +2383,8 @@ fn handle_get_debug_info(msg: &JsValue, send_response: JsValue) {
                 &JsValue::from_str("recentBlockedUrls"),
                 &recent_blocks_arr,
             );
-            let recent_removed: Vec<&RemovedElement> = stats.removed_elements.iter().rev().take(10).collect();
+            let recent_removed: Vec<&RemovedElement> =
+                stats.removed_elements.iter().rev().take(10).collect();
             let recent_removed_arr = Array::new();
             for r in recent_removed.iter().rev() {
                 recent_removed_arr.push(&crate::chrome_bridge::to_js(*r).unwrap_or(JsValue::NULL));
@@ -2476,12 +2562,10 @@ fn set_timeout<F: FnOnce() + 'static>(f: F, ms: i32) {
     // but neither interface is typed via `web_sys::window()` in SW
     // context. Call the global-scope method via Reflect instead.
     let g = global_scope();
-    let Ok(set_timeout_fn) = Reflect::get(&g, &JsValue::from_str("setTimeout"))
-        .and_then(|v| {
-            v.dyn_into::<Function>()
-                .map_err(|_| JsValue::from_str("setTimeout is not a function"))
-        })
-    else {
+    let Ok(set_timeout_fn) = Reflect::get(&g, &JsValue::from_str("setTimeout")).and_then(|v| {
+        v.dyn_into::<Function>()
+            .map_err(|_| JsValue::from_str("setTimeout is not a function"))
+    }) else {
         return;
     };
     let cell = std::cell::Cell::new(Some(f));
@@ -2490,10 +2574,6 @@ fn set_timeout<F: FnOnce() + 'static>(f: F, ms: i32) {
             f();
         }
     });
-    let _ = set_timeout_fn.call2(
-        &g,
-        cb.as_ref(),
-        &JsValue::from_f64(ms as f64),
-    );
+    let _ = set_timeout_fn.call2(&g, cb.as_ref(), &JsValue::from_f64(ms as f64));
     cb.forget();
 }

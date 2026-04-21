@@ -1,0 +1,201 @@
+{
+  "hushProfile": {
+    "name": "Social-media declutter",
+    "description": "Removes algorithmic noise from the big social sites: promoted posts, 'Suggested for you' insertions, trending-topics sidebars, 'Who to follow' rails. Designed for users who visit social sites for specific reasons (watching a subscription feed, reading mentions) and don't want the engagement-optimized extras. Selectors favor stable attributes and custom-element tag names over utility classes (Reddit's shreddit-* tags, Twitter's data-testid). More fragile on Facebook/Instagram/LinkedIn where class names are build-hashed; expect to tune those quarterly.",
+    "version": 1
+  },
+  "config": {
+    "reddit.com": {
+      "remove": [
+        {
+          "value": "article[data-post-id]:has([is-post-commercial-communication])",
+          "tags": ["promoted"],
+          "comment": "Brand Affiliate / promoted posts. Uses :has() to target the post only when it contains the promoted-content flag."
+        },
+        {
+          "value": "faceplate-partial[name^=\"RelatedCommunityRecommendations\"]",
+          "tags": ["algorithmic"],
+          "comment": "Reddit's algorithmic 'communities you might like' insertions in the feed."
+        },
+        {
+          "value": "games-section-badge-controller",
+          "tags": ["promoted"],
+          "comment": "Reddit-authored custom element for the Games section cross-promo."
+        },
+        {
+          "value": "shreddit-distinguished-post",
+          "tags": ["algorithmic"],
+          "comment": "Distinguished-post inserts (admin / moderator pinned promos). Opinionated - some users want these; if you do, delete this entry."
+        }
+      ],
+      "hide": [
+        {
+          "value": "[data-testid=\"subreddit-sidebar\"] [data-testid=\"frontpage-sidebar-widget\"]",
+          "tags": ["sidebar"],
+          "comment": "Sidebar widgets that nag you to check out other subreddits / events / etc. Hide rather than Remove so the sidebar scaffolding stays intact."
+        }
+      ]
+    },
+    "twitter.com": {
+      "hide": [
+        {
+          "value": "[aria-label=\"Trending\"]",
+          "tags": ["algorithmic"],
+          "comment": "Trending-topics sidebar panel."
+        },
+        {
+          "value": "aside[aria-label*=\"Timeline:\"][aria-label*=\"Trending\"]",
+          "tags": ["algorithmic"],
+          "comment": "Aria-label variant for the trending timeline aside."
+        },
+        {
+          "value": "[data-testid=\"sidebarColumn\"] [aria-label*=\"Who to follow\"]",
+          "tags": ["algorithmic"],
+          "comment": "'Who to follow' sidebar rail."
+        }
+      ],
+      "remove": [
+        {
+          "value": "[data-testid=\"placementTracking\"]",
+          "tags": ["promoted"],
+          "comment": "Twitter's promoted-tweet marker. The parent article is the promoted tweet; removing the tracking placement typically collapses the container."
+        },
+        {
+          "value": "article[data-testid=\"tweet\"]:has([data-testid=\"placementTracking\"])",
+          "tags": ["promoted"],
+          "comment": "Belt and braces: the whole tweet article when it carries placementTracking."
+        }
+      ]
+    },
+    "x.com": {
+      "hide": [
+        {
+          "value": "[aria-label=\"Trending\"]",
+          "tags": ["algorithmic"],
+          "comment": "Same DOM shape as twitter.com since they're the same app served under two hostnames."
+        },
+        {
+          "value": "[data-testid=\"sidebarColumn\"] [aria-label*=\"Who to follow\"]",
+          "tags": ["algorithmic"],
+          "comment": "'Who to follow' sidebar."
+        }
+      ],
+      "remove": [
+        {
+          "value": "[data-testid=\"placementTracking\"]",
+          "tags": ["promoted"],
+          "comment": "Promoted-tweet marker."
+        },
+        {
+          "value": "article[data-testid=\"tweet\"]:has([data-testid=\"placementTracking\"])",
+          "tags": ["promoted"],
+          "comment": "Whole article when promoted."
+        }
+      ]
+    },
+    "youtube.com": {
+      "remove": [
+        {
+          "value": "ytd-ad-slot-renderer",
+          "tags": ["ad"],
+          "comment": "Ad slots in the homepage and subscription feeds."
+        },
+        {
+          "value": "ytd-promoted-sparkles-web-renderer",
+          "tags": ["promoted"],
+          "comment": "Promoted video sparkle overlay."
+        },
+        {
+          "value": "ytd-promoted-video-renderer",
+          "tags": ["promoted"],
+          "comment": "Promoted video entries in feeds."
+        },
+        {
+          "value": "ytd-statement-banner-renderer",
+          "tags": ["promoted"],
+          "comment": "Topic-context 'statement banners' YouTube inserts around certain search results."
+        }
+      ],
+      "hide": [
+        {
+          "value": "ytd-rich-section-renderer",
+          "tags": ["algorithmic"],
+          "comment": "Algorithmic 'shelves' inserted into subscription / home feeds. Opinionated - disables 'recently uploaded' groupings too; delete this entry if you want those."
+        },
+        {
+          "value": "ytd-reel-shelf-renderer",
+          "tags": ["shorts"],
+          "comment": "Shorts shelf in the feed. Opinionated - some users want Shorts in-feed; if you do, delete this entry."
+        }
+      ]
+    },
+    "facebook.com": {
+      "remove": [
+        {
+          "value": "[aria-label=\"Sponsored\"]",
+          "tags": ["promoted"],
+          "comment": "Facebook's Sponsored-post marker. Facebook has historically obfuscated this label in response to cosmetic filtering, so expect breakage; re-audit quarterly. No :has() wrapper because Facebook's post tree is deeply nested and :has() perf is bad at that scale."
+        }
+      ],
+      "hide": [
+        {
+          "value": "[aria-label=\"Suggested for you\"]",
+          "tags": ["algorithmic"],
+          "comment": "Suggested-post section marker. Fragile."
+        },
+        {
+          "value": "[aria-label=\"People you may know\"]",
+          "tags": ["algorithmic"],
+          "comment": "People-you-may-know sidebar / inline card."
+        }
+      ]
+    },
+    "instagram.com": {
+      "hide": [
+        {
+          "value": "[aria-label=\"Suggested for you\"]",
+          "tags": ["algorithmic"],
+          "comment": "Suggested posts in the main feed. Class-based selectors on Instagram break every few weeks; aria-label is slightly more stable."
+        },
+        {
+          "value": "article:has(a[href=\"/explore/\"])",
+          "tags": ["algorithmic"],
+          "comment": "Explore-injected content in the main feed. Opinionated - if you rely on Explore embeds, delete this entry."
+        }
+      ]
+    },
+    "linkedin.com": {
+      "hide": [
+        {
+          "value": ".feed-shared-update-v2:has([data-ad-banner])",
+          "tags": ["promoted"],
+          "comment": "Promoted posts in the feed. The data-ad-banner attribute is LinkedIn's own marker for sponsored content."
+        },
+        {
+          "value": "aside[aria-label*=\"People you may know\"]",
+          "tags": ["algorithmic"],
+          "comment": "People-you-may-know aside."
+        },
+        {
+          "value": "aside[aria-label*=\"who to follow\" i]",
+          "tags": ["algorithmic"],
+          "comment": "'Who to follow' variant (case-insensitive)."
+        }
+      ]
+    },
+    "tiktok.com": {
+      "remove": [
+        {
+          "value": "[data-e2e=\"feed-ad\"]",
+          "tags": ["ad"],
+          "comment": "TikTok uses data-e2e attributes (end-to-end test selectors) that survive CSS-class obfuscation; feed-ad is the in-feed ad marker."
+        },
+        {
+          "value": "[data-e2e=\"search-ad\"]",
+          "tags": ["ad"],
+          "comment": "Search-results ad marker."
+        }
+      ]
+    }
+  }
+}

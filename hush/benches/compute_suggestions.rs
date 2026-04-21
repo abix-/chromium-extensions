@@ -28,12 +28,12 @@
 //! native release build; the in-browser WASM runtime typically adds
 //! 1.5-2x on top. See `docs/benchmarks.md` for the breakdown.
 
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use hush::types::{
     Allowlist, BehaviorState, Config, IframeHit, JsCall, ReplayVendor, Resource, SiteConfig,
     StickyHit, StickyRect,
 };
-use hush::{compute_suggestions, SuggestionLayer};
+use hush::{SuggestionLayer, compute_suggestions};
 
 /// Parameters describing a synthetic tab snapshot. Chosen scales
 /// below match the production caps; the detector mix roughly mirrors
@@ -141,7 +141,10 @@ fn sample_state(shape: &TabShape) -> BehaviorState {
     // Hidden iframes from known-trackery host + one legit.
     for i in 0..shape.iframes {
         state.latest_iframes.push(IframeHit {
-            src: format!("https://{}.ads.test/frame{i}", if i % 2 == 0 { "a" } else { "b" }),
+            src: format!(
+                "https://{}.ads.test/frame{i}",
+                if i % 2 == 0 { "a" } else { "b" }
+            ),
             host: format!("{}.ads.test", if i % 2 == 0 { "a" } else { "b" }),
             reasons: vec!["display:none".into(), "1x1 size".into()],
             width: 1,
@@ -269,7 +272,8 @@ fn bench_compute(c: &mut Criterion) {
     let out = compute_suggestions(&heavy_state, &config, &allowlist);
     assert!(!out.is_empty(), "bench fixture produced no suggestions");
     assert!(
-        out.iter().any(|s| matches!(s.layer, SuggestionLayer::Block)),
+        out.iter()
+            .any(|s| matches!(s.layer, SuggestionLayer::Block)),
         "no block-layer suggestions in fixture"
     );
     eprintln!("heavy_tab fixture produces {} suggestions", out.len());

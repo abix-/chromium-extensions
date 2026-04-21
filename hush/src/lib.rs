@@ -27,7 +27,7 @@ mod ui_popup;
 pub use allowlist::{is_legit_hidden_iframe, overlay_allowlisted};
 pub use canon::{canonicalize_url, pattern_keyword};
 pub use compute::compute_suggestions;
-pub use learn::{learn_text, LearnKind};
+pub use learn::{LearnKind, learn_text};
 pub use stack::script_origin_from_stack;
 pub use suggestion::build_suggestion;
 pub use types::{
@@ -87,11 +87,7 @@ pub fn pattern_keyword_wasm(pattern: &str) -> String {
 /// receives back an ordered list of RuleMatches with the winner
 /// flagged. Pure function — no storage reads, no DNR calls.
 #[wasm_bindgen(js_name = "simulateUrl")]
-pub fn simulate_url_wasm(
-    config: JsValue,
-    site_host: &str,
-    url: &str,
-) -> Result<JsValue, JsValue> {
+pub fn simulate_url_wasm(config: JsValue, site_host: &str, url: &str) -> Result<JsValue, JsValue> {
     let config: Config =
         serde_wasm_bindgen::from_value(config).map_err(|e| JsValue::from_str(&e.to_string()))?;
     let matches = simulate::simulate_url(&config, site_host, url);

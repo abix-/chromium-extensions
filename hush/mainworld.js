@@ -97,15 +97,17 @@
   }
 
   // Extract the initiating-script host from a V8 stack. Mirrors
-  // src/stack.rs::script_origin_from_stack — can't call wasm from
-  // mainworld (CSP), so reimplement the ~10 lines here. Skips Hush's
-  // own `mainworld.js` frames so we attribute to the real caller.
+  // src/stack.rs::script_origin_from_stack - can't call wasm from
+  // mainworld (CSP), so reimplement the ~10 lines here.
+  //
+  // Hush's own frames are `chrome-extension://<id>/mainworld.js`;
+  // they contain neither `http://` nor `https://`, so the anchor
+  // search below naturally skips them. No special-case needed.
   function stackOriginHost(stack) {
     if (!Array.isArray(stack)) return "";
     for (let i = 0; i < stack.length; i++) {
       const frame = stack[i];
       if (typeof frame !== "string") continue;
-      if (frame.indexOf("mainworld.js") >= 0) continue;
       const http = frame.indexOf("http://");
       const https = frame.indexOf("https://");
       let start = -1;
@@ -130,22 +132,60 @@
     return "";
   }
 
-  // uBlock-style URL filter match against a host. Strips `||`
-  // anchor prefix and `^` boundary suffix. Returns the matched
-  // filter string on hit, "" on miss.
-  function matchesUrlFilter(host, rawFilter) {
+  // Test-reachable surface for the cross-language stack-origin
+  // contract test (see hush/test/stack_origin.test.mjs). Same
+  // exposure pattern as `window.__hush_stub_q__` below. Page JS
+  // can read it but can't do anything destructive - stackOriginHost
+  // is a pure function of its string-array argument.
+  try { window.__hush_mainworld__ = { stackOriginHost }; } catch (e) {}
+
+  // Host-anchor pattern match. Deliberately smaller grammar than
+  // uBlock's URL filters because our enforcement point is a
+  // pre-extracted script-origin HOST, not a URL:
+  //
+  //   `||host.example.com`  anchor: matches `host.example.com` and
+  //                         any subdomain (`a.host.example.com`).
+  //   `||host.example.com^` same; trailing `^` accepted as a
+  //                         uBlock-compat no-op.
+  //   `*` wildcard          zero or more of any character. Works
+  //                         across DNS-label boundaries.
+  //                         `||*.ads.example.com` matches
+  //                         `tracker.ads.example.com`. `*ads*`
+  //                         matches any host containing `ads`.
+  //   bare pattern          substring match on host.
+  //
+  // The rest of uBlock's grammar (path matching, `$` options,
+  // regex filters, `|` full anchors) is NOT accepted: mainworld
+  // can't see the URL path, and the option syntax is
+  // request-lifecycle-specific.
+  //
+  // Returns the raw filter string on match, "" on miss.
+  function matchesHostPattern(host, rawFilter) {
     if (!host || !rawFilter) return "";
-    let f = rawFilter;
-    if (f.startsWith("||")) f = f.slice(2);
+    const anchored = rawFilter.startsWith("||");
+    let f = anchored ? rawFilter.slice(2) : rawFilter;
     if (f.endsWith("^")) f = f.slice(0, -1);
     if (!f) return "";
-    // Anchored (||) = host is exactly `f` OR host ends with `.f`.
-    if (rawFilter.startsWith("||")) {
-      if (host === f || host.endsWith("." + f)) return rawFilter;
+
+    // Fast path: literal pattern, no wildcards.
+    if (f.indexOf("*") < 0) {
+      if (anchored) {
+        return (host === f || host.endsWith("." + f)) ? rawFilter : "";
+      }
+      return host.indexOf(f) >= 0 ? rawFilter : "";
+    }
+
+    // Wildcard path: compile a regex. Escape every regex metachar
+    // except `*`, then substitute `*` for `.*`.
+    const escaped = f
+      .replace(/[-/\\^$+?.()|[\]{}]/g, "\\$&")
+      .replace(/\*/g, ".*");
+    const body = anchored ? `^(?:.+\\.)?${escaped}$` : escaped;
+    try {
+      return new RegExp(body).test(host) ? rawFilter : "";
+    } catch (_e) {
       return "";
     }
-    // Bare pattern = substring match on host.
-    return host.indexOf(f) >= 0 ? rawFilter : "";
   }
 
   // Parse the comma-separated dataset attribute into a filter list.
@@ -160,13 +200,13 @@
     } catch (e) { return []; }
   }
 
-  // Find the first filter in dataset.<attr> that matches the host.
-  // Returns "" on no match.
-  function findFilterMatch(host, attr) {
+  // Find the first host-anchor pattern in dataset.<attr> that
+  // matches the host. Returns "" on no match.
+  function findHostMatch(host, attr) {
     if (!host) return "";
     const filters = datasetFilters(attr);
     for (let i = 0; i < filters.length; i++) {
-      const m = matchesUrlFilter(host, filters[i]);
+      const m = matchesHostPattern(host, filters[i]);
       if (m) return m;
     }
     return "";
@@ -281,7 +321,7 @@
       // silence rule, skip the real fetch and fake a 204.
       try {
         const origin = stackOriginHost(stack);
-        const match = findFilterMatch(origin, "hushSilence");
+        const match = findHostMatch(origin, "hushSilence");
         if (match) {
           emitHit("silence", origin, match);
           return Promise.resolve(new Response(null, { status: 204 }));
@@ -318,7 +358,7 @@
       // callers that poll readyState don't hang.
       try {
         const origin = stackOriginHost(stack);
-        const match = findFilterMatch(origin, "hushSilence");
+        const match = findHostMatch(origin, "hushSilence");
         if (match) {
           emitHit("silence", origin, match);
           const xhr = this;
@@ -355,13 +395,23 @@
             stack
           });
         } catch (e) {}
+        // Global kill-switch spoof: sendBeacon's literal purpose is
+        // page-unload telemetry and has no user-beneficial use.
+        // When `spoof: ["sendbeacon"]` is set in Global scope, the
+        // API returns `true` (queued) without actually firing the
+        // request. Runs before the origin-matched Silence branch so
+        // the global toggle wins.
+        if (hasSpoofTag("sendbeacon")) {
+          emitSpoofHit("sendbeacon");
+          return true;
+        }
         // Silence: per MDN, sendBeacon returns boolean indicating
         // whether the UA queued the transfer. `true` is the "all
-        // good" answer the replay lib expects — we never send,
+        // good" answer the replay lib expects - we never send,
         // they never know.
         try {
           const origin = stackOriginHost(stack);
-          const match = findFilterMatch(origin, "hushSilence");
+          const match = findHostMatch(origin, "hushSilence");
           if (match) {
             emitHit("silence", origin, match);
             return true;
@@ -670,6 +720,21 @@
             stack: cap()
           });
         } catch (e) {}
+        // Global kill-switch spoof: any page-script call to
+        // clipboard.readText is a paste-sniff or coupon-tracking
+        // probe. When `spoof: ["clipboard-read"]` is active,
+        // reject synthetically with the exact NotAllowedError the
+        // browser raises when the user denies the permission
+        // prompt. Sites that handle that denial gracefully keep
+        // working; sites that chain on a successful read break
+        // silently, which is the right outcome.
+        if (hasSpoofTag("clipboard-read")) {
+          emitSpoofHit("clipboard-read");
+          return Promise.reject(new DOMException(
+            "Read permission denied.",
+            "NotAllowedError"
+          ));
+        }
         return _readText.apply(this, arguments);
       };
     }
@@ -697,7 +762,11 @@
   // prototype's entry point. Emits `new-api-probe` with the
   // constructor-qualified method name so the detector can tell
   // Bluetooth from USB in the firewall log.
-  function wrapDeviceApi(proto, methodName, tag) {
+  // Spoof kinds matching each device API. Kept as per-API toggles
+  // (not one bucket) so a maker-space user who actually uses
+  // Bluetooth can leave that on while still killing USB/HID/Serial
+  // probes from random sites.
+  function wrapDeviceApi(proto, methodName, tag, spoofKind) {
     try {
       if (proto && typeof proto[methodName] === "function") {
         const _orig = captureOrig(proto, methodName);
@@ -709,6 +778,17 @@
               stack: cap()
             });
           } catch (e) {}
+          // Global kill-switch spoof: reject with the same
+          // NotFoundError the browser raises when the user
+          // cancels the device-picker. Spec-compliant denial
+          // path; sites that probe-and-expect-decline still work.
+          if (hasSpoofTag(spoofKind)) {
+            emitSpoofHit(spoofKind);
+            return Promise.reject(new DOMException(
+              "User cancelled the requestDevice() chooser.",
+              "NotFoundError"
+            ));
+          }
           return _orig.apply(this, arguments);
         };
       }
@@ -716,22 +796,22 @@
   }
   try {
     if (typeof Bluetooth !== "undefined") {
-      wrapDeviceApi(Bluetooth.prototype, "requestDevice", "Bluetooth.requestDevice");
+      wrapDeviceApi(Bluetooth.prototype, "requestDevice", "Bluetooth.requestDevice", "bluetooth");
     }
   } catch (e) {}
   try {
     if (typeof USB !== "undefined") {
-      wrapDeviceApi(USB.prototype, "requestDevice", "USB.requestDevice");
+      wrapDeviceApi(USB.prototype, "requestDevice", "USB.requestDevice", "usb");
     }
   } catch (e) {}
   try {
     if (typeof HID !== "undefined") {
-      wrapDeviceApi(HID.prototype, "requestDevice", "HID.requestDevice");
+      wrapDeviceApi(HID.prototype, "requestDevice", "HID.requestDevice", "hid");
     }
   } catch (e) {}
   try {
     if (typeof Serial !== "undefined") {
-      wrapDeviceApi(Serial.prototype, "requestPort", "Serial.requestPort");
+      wrapDeviceApi(Serial.prototype, "requestPort", "Serial.requestPort", "serial");
     }
   } catch (e) {}
 
@@ -772,7 +852,7 @@
         if (typeIsNeuterable) {
           if (!stack) stack = cap();
           const origin = stackOriginHost(stack);
-          const match = findFilterMatch(origin, "hushNeuter");
+          const match = findHostMatch(origin, "hushNeuter");
           if (match) {
             emitHit("neuter", origin, match);
             return undefined;

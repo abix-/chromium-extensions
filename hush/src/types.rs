@@ -240,7 +240,11 @@ pub enum FirewallEvidence {
     /// resource type (if the onRuleMatchedDebug event exposed it).
     Block {
         url: String,
-        #[serde(rename = "resourceType", default, skip_serializing_if = "Option::is_none")]
+        #[serde(
+            rename = "resourceType",
+            default,
+            skip_serializing_if = "Option::is_none"
+        )]
         resource_type: Option<String>,
     },
     /// Remove hit: one entry per physically-removed DOM node. The
@@ -258,10 +262,65 @@ pub enum FirewallEvidence {
 }
 
 /// Build the canonical `rule_id` for a (action, scope, match) triple.
-/// Matches the suggestion-key format so downstream UIs can cross-
-/// reference accepted suggestions with their resulting rule events.
+///
+/// Output is a JSON-encoded three-element array:
+/// `["block","example.com","||ads.example.com"]`.
+///
+/// The prior format `"{action}::{scope}::{match}"` collided with
+/// any user-authored pattern that contained a `::` literal (e.g.
+/// `||foo::bar.example.com`), producing an unreachable id that
+/// split-rebuilds couldn't recover. The JSON-array form is
+/// round-trip-safe because `"` and `\` are escaped inside each
+/// element.
+///
+/// `rule_id` is used as an opaque identifier and a map key only; no
+/// caller parses it back to (action, scope, match), so the wire
+/// cost is just a longer string in the debug payload.
+///
+/// Written by hand rather than via `serde_json` so this crate's
+/// runtime dependency list stays minimal (~80 KB of `serde_json`
+/// would land in the shipped WASM for a feature this crate
+/// otherwise doesn't use; `serde_json` is dev-only for tests).
+///
+/// Migration: events persisted to `chrome.storage.session` under
+/// the old `::`-delimited format keep that format until FIFO
+/// eviction. Session storage clears on browser restart, so stale
+/// keys evaporate within a day of normal use.
 pub fn rule_id(action: &str, scope: &str, match_: &str) -> String {
-    format!("{action}::{scope}::{match_}")
+    let mut s = String::with_capacity(6 + action.len() + scope.len() + match_.len());
+    s.push('[');
+    json_escape_into(&mut s, action);
+    s.push(',');
+    json_escape_into(&mut s, scope);
+    s.push(',');
+    json_escape_into(&mut s, match_);
+    s.push(']');
+    s
+}
+
+/// Hand-rolled JSON string escape, writing `"..."` into `out`.
+/// Covers the full ECMA-404 requirement: escape `"`, `\`, and
+/// every control character below 0x20. Matches what
+/// `serde_json::to_string(&s)` would produce for any `&str`, so
+/// downstream JSON parsers can round-trip it if ever needed.
+fn json_escape_into(out: &mut String, s: &str) {
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\x08' => out.push_str("\\b"),
+            '\x0c' => out.push_str("\\f"),
+            c if (c as u32) < 0x20 => {
+                out.push_str(&format!("\\u{:04x}", c as u32));
+            }
+            c => out.push(c),
+        }
+    }
+    out.push('"');
 }
 
 /// Selectors a content-script pass observed throwing on
@@ -374,8 +433,12 @@ pub struct SiteConfig {
     pub allow: Vec<RuleEntry>,
     /// Main-world action: deny capture-surface API registrations
     /// (interaction-event `addEventListener` calls) from matching
-    /// script origins. Each entry's `value` is a uBlock-style
-    /// URL filter matched against the caller's stack origin.
+    /// script origins. Each entry's `value` is a host-anchor
+    /// pattern (the `||host^` subset of uBlock syntax, plus `*`
+    /// wildcards and bare substring) matched against the caller's
+    /// stack-origin host. Not full uBlock URL-filter grammar --
+    /// mainworld only has the script's host, not the URL. See
+    /// `mainworld.js::matchesHostPattern` for the exact syntax.
     /// Runs at document_start before any page script; legitimate
     /// site listeners from non-matching origins register normally.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -385,14 +448,25 @@ pub struct SiteConfig {
     /// fake success (204 No Content / XHR state 4 / beacon-true).
     /// Fallback for bundled first-party replay libraries where
     /// `neuter` can't match by origin. Each entry's `value` is a
-    /// uBlock-style URL filter against the stack origin host.
+    /// host-anchor pattern (same grammar as `neuter`, matched
+    /// against the initiating script's host).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub silence: Vec<RuleEntry>,
-    /// Fingerprint signals to neutralize for this site. Each entry
-    /// is a kind tag; the main-world hook checks the tag and returns
-    /// bland, identical-across-users values instead of the real ones.
-    /// Currently supported: `webgl-unmasked` (WebGL UNMASKED_VENDOR
-    /// and UNMASKED_RENDERER). Future kinds: `canvas`, `audio`, etc.
+    /// Fingerprint signals and category kill-switches. Each entry
+    /// is a kind tag; the main-world hook checks the tag at call
+    /// time and returns a benign value instead of the real one.
+    ///
+    /// Fingerprint kinds (per-site opt-in typical): `webgl-unmasked`,
+    /// `canvas`, `audio`, `font-enum`. These kill entropy; legit
+    /// uses of canvas or audio may break, so they're usually
+    /// opt-in per site.
+    ///
+    /// Kill-switch kinds (Global-scope typical): `sendbeacon`,
+    /// `clipboard-read`, `bluetooth`, `usb`, `hid`, `serial`. These
+    /// APIs have no user-side benefit on typical sites, so they
+    /// ship defaults-on in the seed `sites.json` Global scope.
+    /// Users who genuinely need WebBluetooth / WebUSB / etc.
+    /// delete the relevant kind from their config.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub spoof: Vec<RuleEntry>,
 }
@@ -470,7 +544,11 @@ pub struct Resource {
     pub duration: i64,
     #[serde(rename = "startTime", default)]
     pub start_time: i64,
-    #[serde(rename = "reporterFrame", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "reporterFrame",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub reporter_frame: Option<String>,
 }
 
@@ -489,7 +567,11 @@ pub struct IframeHit {
     pub height: i64,
     #[serde(rename = "outerHTMLPreview", default)]
     pub outer_html_preview: String,
-    #[serde(rename = "reporterFrame", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "reporterFrame",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub reporter_frame: Option<String>,
 }
 
@@ -505,7 +587,11 @@ pub struct StickyHit {
     pub z_index: i64,
     #[serde(default)]
     pub rect: StickyRect,
-    #[serde(rename = "reporterFrame", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "reporterFrame",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub reporter_frame: Option<String>,
 }
 
@@ -535,7 +621,11 @@ pub struct JsCall {
     pub url: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub method: Option<String>,
-    #[serde(rename = "bodyPreview", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "bodyPreview",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub body_preview: Option<String>,
     // Tier 1 fingerprinting fields
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -558,7 +648,11 @@ pub struct JsCall {
     pub visible: Option<bool>,
     #[serde(rename = "canvasSel", default, skip_serializing_if = "Option::is_none")]
     pub canvas_sel: Option<String>,
-    #[serde(rename = "reporterFrame", default, skip_serializing_if = "Option::is_none")]
+    #[serde(
+        rename = "reporterFrame",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
     pub reporter_frame: Option<String>,
 }
 
@@ -646,10 +740,7 @@ pub enum SignalPayload {
         stack: Vec<String>,
     },
     #[serde(rename = "canvas-fp")]
-    CanvasFp {
-        method: String,
-        stack: Vec<String>,
-    },
+    CanvasFp { method: String, stack: Vec<String> },
     #[serde(rename = "font-fp")]
     FontFp {
         font: String,
@@ -664,10 +755,7 @@ pub enum SignalPayload {
         stack: Vec<String>,
     },
     #[serde(rename = "audio-fp")]
-    AudioFp {
-        method: String,
-        stack: Vec<String>,
-    },
+    AudioFp { method: String, stack: Vec<String> },
     #[serde(rename = "listener-added")]
     ListenerAdded {
         #[serde(rename = "eventType")]
@@ -675,9 +763,7 @@ pub enum SignalPayload {
         stack: Vec<String>,
     },
     #[serde(rename = "replay-global")]
-    ReplayGlobal {
-        vendors: Vec<ReplayVendor>,
-    },
+    ReplayGlobal { vendors: Vec<ReplayVendor> },
     #[serde(rename = "canvas-draw")]
     CanvasDraw {
         op: String,
@@ -713,7 +799,8 @@ mod signal_payload_tests {
 
     #[test]
     fn fetch_variant() {
-        let s = r#"{"kind":"fetch","url":"https://x/","method":"GET","bodyPreview":null,"stack":[]}"#;
+        let s =
+            r#"{"kind":"fetch","url":"https://x/","method":"GET","bodyPreview":null,"stack":[]}"#;
         assert!(matches!(roundtrip(s), SignalPayload::Fetch { .. }));
     }
 
@@ -758,10 +845,18 @@ mod signal_payload_tests {
     #[test]
     fn webgl_fp_variant_requires_hot_param() {
         let s = r#"{"kind":"webgl-fp","param":"37446","hotParam":true,"stack":[]}"#;
-        assert!(matches!(roundtrip(s), SignalPayload::WebglFp { hot_param: true, .. }));
+        assert!(matches!(
+            roundtrip(s),
+            SignalPayload::WebglFp {
+                hot_param: true,
+                ..
+            }
+        ));
         let missing = r#"{"kind":"webgl-fp","param":"37446","stack":[]}"#;
-        assert!(serde_json::from_str::<SignalPayload>(missing).is_err(),
-            "hotParam is required; omission must fail");
+        assert!(
+            serde_json::from_str::<SignalPayload>(missing).is_err(),
+            "hotParam is required; omission must fail"
+        );
     }
 
     #[test]
@@ -787,10 +882,15 @@ mod signal_payload_tests {
     #[test]
     fn canvas_draw_variant_requires_visible_flag() {
         let s = r#"{"kind":"canvas-draw","op":"fillRect","visible":false,"canvasSel":"canvas#x","stack":[]}"#;
-        assert!(matches!(roundtrip(s), SignalPayload::CanvasDraw { visible: false, .. }));
+        assert!(matches!(
+            roundtrip(s),
+            SignalPayload::CanvasDraw { visible: false, .. }
+        ));
         let missing = r#"{"kind":"canvas-draw","op":"fillRect","canvasSel":"canvas#x","stack":[]}"#;
-        assert!(serde_json::from_str::<SignalPayload>(missing).is_err(),
-            "visible is required; omission must fail (0.5.0 bug class)");
+        assert!(
+            serde_json::from_str::<SignalPayload>(missing).is_err(),
+            "visible is required; omission must fail (0.5.0 bug class)"
+        );
     }
 
     #[test]
@@ -917,8 +1017,7 @@ mod rule_entry_tests {
         let merged = merged_site_config(&cfg, "site.test");
         assert_eq!(merged.neuter.len(), 2);
         assert_eq!(merged.silence.len(), 1);
-        let neuter_values: Vec<&str> =
-            merged.neuter.iter().map(|e| e.value.as_str()).collect();
+        let neuter_values: Vec<&str> = merged.neuter.iter().map(|e| e.value.as_str()).collect();
         assert!(neuter_values.contains(&"||hotjar.com"));
         assert!(neuter_values.contains(&"||site-analytics.example.com"));
     }
@@ -947,6 +1046,106 @@ mod rule_entry_tests {
             },
         );
         let merged = merged_site_config(&cfg, "site.test");
-        assert_eq!(merged.block.len(), 1, "duplicate value dedups across scopes");
+        assert_eq!(
+            merged.block.len(),
+            1,
+            "duplicate value dedups across scopes"
+        );
+    }
+}
+
+#[cfg(test)]
+mod rule_id_tests {
+    use super::*;
+
+    #[test]
+    fn plain_triple_produces_valid_json_array() {
+        let id = rule_id("block", "example.com", "||ads.example.com");
+        assert_eq!(id, r#"["block","example.com","||ads.example.com"]"#);
+    }
+
+    #[test]
+    fn round_trip_via_serde_json() {
+        // Any output must parse back to the same three fields.
+        let cases: &[(&str, &str, &str)] = &[
+            ("block", "example.com", "||ads.example.com"),
+            ("remove", "__global__", ".modal-overlay"),
+            ("spoof", "site.test", "webgl-unmasked"),
+        ];
+        for (a, s, m) in cases {
+            let id = rule_id(a, s, m);
+            let parsed: [String; 3] =
+                serde_json::from_str(&id).expect("rule_id output is valid JSON");
+            assert_eq!(parsed[0], *a);
+            assert_eq!(parsed[1], *s);
+            assert_eq!(parsed[2], *m);
+        }
+    }
+
+    #[test]
+    fn match_containing_double_colon_round_trips_cleanly() {
+        // Regression lock for the P1 fix: the prior
+        // `"{action}::{scope}::{match}"` format produced an
+        // ambiguous id when the match contained `::`. The JSON
+        // array form is unambiguous.
+        let id = rule_id("block", "example.com", "||foo::bar.example.com");
+        let parsed: [String; 3] = serde_json::from_str(&id).unwrap();
+        assert_eq!(parsed[2], "||foo::bar.example.com");
+
+        // Two different rules with `::` in different positions
+        // produce distinct ids.
+        let a = rule_id("block", "x::y", "z");
+        let b = rule_id("block", "x", "y::z");
+        assert_ne!(a, b, "`::` placement is preserved unambiguously");
+    }
+
+    #[test]
+    fn match_containing_json_metachars_round_trips() {
+        // CSS selectors frequently contain `"`; regex filters
+        // sometimes contain `\`. Both must escape and round-trip.
+        let cases: &[(&str, &str, &str)] = &[
+            ("remove", "site.test", r#"[class*="StickerChips"]"#),
+            ("remove", "site.test", r#"a[href="/x\"y"]"#),
+            ("remove", "site.test", "a\\b"),
+            ("remove", "site.test", "line1\nline2"),
+            ("remove", "site.test", "tab\there"),
+        ];
+        for (a, s, m) in cases {
+            let id = rule_id(a, s, m);
+            let parsed: [String; 3] = serde_json::from_str(&id)
+                .unwrap_or_else(|e| panic!("round-trip failed for {m:?}: {e}"));
+            assert_eq!(parsed[2], *m);
+        }
+    }
+
+    #[test]
+    fn distinct_inputs_never_collide() {
+        // No two (action, scope, match) triples that differ in
+        // any field produce the same id. Prior format allowed
+        // collisions via `::` placement (`"a::b::c::d"` could
+        // parse as either `(a,b,c::d)` or `(a,b::c,d)`).
+        let ids = [
+            rule_id("block", "a", "b"),
+            rule_id("block", "a", "c"),
+            rule_id("block", "b", "a"),
+            rule_id("remove", "a", "b"),
+            rule_id("block", "a::b", "c"),
+            rule_id("block", "a", "b::c"),
+            rule_id("block", "", "c"),
+            rule_id("block", "a", ""),
+        ];
+        let set: std::collections::HashSet<&String> = ids.iter().collect();
+        assert_eq!(set.len(), ids.len(), "all inputs produce distinct ids");
+    }
+
+    #[test]
+    fn control_characters_escape_via_unicode_code_point() {
+        // Control chars below 0x20 use `\u00XX`; \b and \f use
+        // their short forms. Matches ECMA-404 and `serde_json`
+        // output byte-for-byte.
+        let id = rule_id("block", "site.test", "null\0char");
+        assert!(id.contains("\\u0000"), "got: {id}");
+        let parsed: [String; 3] = serde_json::from_str(&id).unwrap();
+        assert_eq!(parsed[2], "null\0char");
     }
 }

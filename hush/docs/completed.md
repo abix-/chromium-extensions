@@ -32,8 +32,13 @@ available:
   `document_start`. Leaves the element in the DOM.
 - **Spoof** (fingerprint) — kind tag; returns bland constants
   from the named fingerprint API instead of real values.
-  Supported kinds: `webgl-unmasked`, `canvas`, `audio`,
-  `font-enum`.
+  Fingerprint kinds: `webgl-unmasked`, `canvas`, `audio`,
+  `font-enum`. Kill-switch kinds (no legitimate user-side use;
+  recommended Global scope): `sendbeacon` (neutralizes the
+  page-unload telemetry API), `clipboard-read`, `bluetooth`,
+  `usb`, `hid`, `serial` (device-probe APIs). Kill-switches ship
+  on by default in the seed `sites.json` Global scope and in
+  `profiles/brave-supplement.json`.
 
 Rules evaluate **first-match-wins within each action**. The
 cross-action case (Allow overriding Block) goes through DNR

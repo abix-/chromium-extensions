@@ -45,7 +45,9 @@ pub fn build_suggestion(input: &BuildSuggestionInput) -> Suggestion {
         value: input.value.clone(),
         layer: input.layer,
         tab_hostname: tab_hostname.clone(),
-        frame_hostname: frame_hostname.clone().unwrap_or_else(|| tab_hostname.clone()),
+        frame_hostname: frame_hostname
+            .clone()
+            .unwrap_or_else(|| tab_hostname.clone()),
         is_from_iframe,
         matched_key: input.matched_key.clone(),
         config_has_site: input.config_has_site,

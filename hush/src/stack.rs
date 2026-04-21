@@ -4,8 +4,14 @@
 //! each frame looks like
 //! `  at name (https://cdn.example.com/tracker.js:10:5)`.
 //! To attribute an observation to the script that fired it, find the
-//! first frame whose URL is NOT Hush's own `mainworld.js`, parse its
-//! host, and return that host.
+//! first frame whose URL has an http/https anchor and parse its host.
+//!
+//! Hush's own frames are `chrome-extension://<id>/mainworld.js` —
+//! they carry no http/https anchor, so [`extract_host`] returns
+//! `None` for them naturally and they're skipped without a
+//! dedicated filename check. A prior substring filter on
+//! `"mainworld.js"` also mis-skipped any page that hosted its own
+//! file by that name; removed here.
 //!
 //! URL parsing goes through the `url` crate so punycode/IDN/encoded
 //! hosts are handled correctly. Empty or unparseable input returns an
@@ -14,14 +20,11 @@
 use url::Url;
 
 /// Given a stack captured by the main-world hook, return the hostname
-/// of the first non-Hush script frame. Returns empty string when no
+/// of the first http/https script frame. Returns empty string when no
 /// parseable frame is found.
 pub fn script_origin_from_stack<S: AsRef<str>>(stack: &[S]) -> String {
     for frame in stack {
         let frame = frame.as_ref();
-        if frame.contains("mainworld.js") {
-            continue;
-        }
         if let Some(host) = extract_host(frame) {
             return host;
         }
@@ -74,13 +77,29 @@ mod tests {
     }
 
     #[test]
-    fn skip_mainworld_frames() {
+    fn hush_extension_frames_are_skipped_by_anchor_miss() {
+        // Hush's own `chrome-extension://<id>/mainworld.js` frames
+        // carry no http/https anchor, so extract_host returns None
+        // and the frame is skipped without a filename-based check.
         let stack = vec![
-            "    at emit (https://site.test/mainworld.js:80:3)",
+            "    at emit (chrome-extension://abcdef/mainworld.js:80:3)",
             "    at fingerprint (https://trackers.test/fp.js:20:8)",
             "    at main (https://site.test/app.js:5:1)",
         ];
         assert_eq!(script_origin_from_stack(&stack), "trackers.test");
+    }
+
+    #[test]
+    fn site_hosted_mainworld_js_is_not_mistaken_for_hush() {
+        // Regression lock: a page that hosts its own `mainworld.js`
+        // at an http/https URL is a legitimate calling origin. The
+        // old substring filter skipped these too and returned the
+        // wrong origin.
+        let stack = vec![
+            "    at emit (https://site.test/mainworld.js:80:3)",
+            "    at main (https://site.test/app.js:5:1)",
+        ];
+        assert_eq!(script_origin_from_stack(&stack), "site.test");
     }
 
     #[test]
@@ -90,8 +109,8 @@ mod tests {
     }
 
     #[test]
-    fn all_mainworld_frames_returns_empty() {
-        let stack = vec!["at emit (https://a/mainworld.js:1:1)"];
+    fn all_extension_frames_return_empty() {
+        let stack = vec!["at emit (chrome-extension://abc/mainworld.js:1:1)"];
         assert_eq!(script_origin_from_stack(&stack), "");
     }
 
@@ -108,6 +127,44 @@ mod tests {
     fn punycode_host_returns_ascii_form() {
         // url crate normalizes to ASCII; we get the xn--... back.
         let frame = "at fn (https://xn--bcher-kva.example/a.js:1:1)";
-        assert_eq!(extract_host(frame).as_deref(), Some("xn--bcher-kva.example"));
+        assert_eq!(
+            extract_host(frame).as_deref(),
+            Some("xn--bcher-kva.example")
+        );
+    }
+
+    // Cross-language contract test. The JSON fixture is shared
+    // with `hush/test/stack_origin.test.mjs`; both tests iterate
+    // over it and assert the same `expected` host for each case.
+    // Adding a case here runs it in both languages. Drift between
+    // Rust and JS implementations becomes a failing test in the
+    // language that drifted.
+    #[test]
+    fn fixture_cases_match_expected() {
+        use serde::Deserialize;
+
+        #[derive(Deserialize)]
+        struct Case {
+            name: String,
+            stack: Vec<String>,
+            expected: String,
+        }
+        #[derive(Deserialize)]
+        struct Fixture {
+            cases: Vec<Case>,
+        }
+
+        let raw = include_str!("../test/stack_fixtures.json");
+        let fx: Fixture = serde_json::from_str(raw).expect("fixture parses");
+        assert!(!fx.cases.is_empty(), "fixture has at least one case");
+
+        for case in fx.cases {
+            let got = script_origin_from_stack(&case.stack);
+            assert_eq!(
+                got, case.expected,
+                "fixture case `{}`: Rust returned `{}`, expected `{}`",
+                case.name, got, case.expected
+            );
+        }
     }
 }

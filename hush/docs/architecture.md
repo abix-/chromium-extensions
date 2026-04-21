@@ -326,7 +326,8 @@ appearing, Allow it.
 extensions/hush/
   manifest.json            MV3 manifest. Permissions +
                            content_security_policy + key.
-  background.js            18-line wasm bootstrap + log-sink relay.
+  background.js            Wasm bootstrap + one-shot config-schema
+                           migrator. No network egress.
   content.js               Pure-JS content script (runs on every
                            matched frame at document_start, applies
                            remove + hide + spoof-marker; can't run
@@ -367,8 +368,7 @@ extensions/hush/
     history.md               Retired rollout notes.
     completed.md             Current feature snapshot.
     benchmarks.md            compute_suggestions perf.
-  sites.json                 Seed rules — case studies only.
-  tools/log-server.mjs       Local dev HTTP log sink.
+  sites.json                 Seed rules - case studies only.
 ```
 
 ## Planned work

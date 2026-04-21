@@ -12,8 +12,8 @@
 
 use crate::chrome_bridge;
 use crate::types::{
-    BlockDiagnostic, BlockedUrl, FirewallEvent, FirewallEvidence, RemovedElement, SiteConfig,
-    Suggestion, SuggestionDiag, SuggestionLayer, GLOBAL_SCOPE_KEY,
+    BlockDiagnostic, BlockedUrl, FirewallEvent, FirewallEvidence, GLOBAL_SCOPE_KEY, RemovedElement,
+    SiteConfig, Suggestion, SuggestionDiag, SuggestionLayer,
 };
 use indexmap::IndexMap;
 use js_sys::Reflect;
@@ -21,8 +21,8 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use serde::Deserialize;
 use std::cell::RefCell;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 
 /// Fire-and-forget clipboard write. Logs the failure and moves on
 /// instead of propagating the error back to the UI thread - the
@@ -217,19 +217,21 @@ pub async fn hush_popup_main() -> Result<(), JsValue> {
     // rendering something. The per-branch cost is ~1-3ms of in-process
     // message round-trips; parallelizing would shave ~10ms and isn't
     // worth the unsafe-pin-projection machinery it requires.
-    let stats = chrome_bridge::get_tab_stats(tab_id).await.unwrap_or_default();
+    let stats = chrome_bridge::get_tab_stats(tab_id)
+        .await
+        .unwrap_or_default();
     let suggestions = chrome_bridge::get_suggestions(tab_id)
         .await
         .unwrap_or_default();
     let diagnostics = chrome_bridge::get_rule_diagnostics(tab_id, &hostname)
         .await
         .unwrap_or_default();
-    let storage = chrome_bridge::get_popup_storage().await.unwrap_or(
-        chrome_bridge::PopupStorage {
+    let storage = chrome_bridge::get_popup_storage()
+        .await
+        .unwrap_or(chrome_bridge::PopupStorage {
             detector_enabled: false,
             config: crate::types::Config::default(),
-        },
-    );
+        });
     let events = chrome_bridge::get_firewall_events(tab_id)
         .await
         .unwrap_or_default();
@@ -318,13 +320,19 @@ fn PopupRoot(snap: PopupSnapshot) -> impl IntoView {
 
     // Expose the signal to JS-side buttons via refresh_popup_suggestions.
     POPUP_HANDLE.with(|h| {
-        *h.borrow_mut() = Some(PopupHandle { suggestions, tab_id });
+        *h.borrow_mut() = Some(PopupHandle {
+            suggestions,
+            tab_id,
+        });
     });
 
     view! {
         <MatchedSite
             hostname=snap.hostname.clone()
             matched_domain=snap.matched_domain.clone()
+        />
+        <GlobalProtections
+            global_spoofs=snap.global_rules.spoof.clone()
         />
         <ActivitySummary
             block_count=snap.block_count
@@ -426,21 +434,14 @@ fn UnmatchedBanner(hostname: String) -> impl IntoView {
                 Ok(storage) => {
                     let mut cfg = storage.config;
                     if !cfg.contains_key(&hostname) {
-                        cfg.insert(
-                            hostname.clone(),
-                            crate::types::SiteConfig::default(),
-                        );
+                        cfg.insert(hostname.clone(), crate::types::SiteConfig::default());
                         let _ = chrome_bridge::set_config(&cfg).await;
                     }
                     // Clear the existing Leptos tree by blanking the
                     // root, then re-run the bootstrap. Simpler than
                     // plumbing a refresh signal through every sub-tree.
-                    if let Some(document) =
-                        web_sys::window().and_then(|w| w.document())
-                    {
-                        if let Some(root) =
-                            document.get_element_by_id("rust-popup-root")
-                        {
+                    if let Some(document) = web_sys::window().and_then(|w| w.document()) {
+                        if let Some(root) = document.get_element_by_id("rust-popup-root") {
                             root.set_inner_html("");
                         }
                     }
@@ -480,11 +481,7 @@ fn UnmatchedBanner(hostname: String) -> impl IntoView {
 /// clipboard). Replaces the `<footer>` block that used to live in
 /// `popup.html`.
 #[component]
-fn FooterButtons(
-    tab_id: Option<i32>,
-    tab_url: String,
-    hostname: String,
-) -> impl IntoView {
+fn FooterButtons(tab_id: Option<i32>, tab_url: String, hostname: String) -> impl IntoView {
     let debug_label = RwSignal::new("Debug");
 
     let on_options = move |_| {
@@ -546,11 +543,10 @@ fn FooterButtons(
                 // Revert after 2s.
                 if let Some(window) = web_sys::window() {
                     let cb = Closure::<dyn Fn()>::new(move || debug_label.set("Debug"));
-                    let _ = window
-                        .set_timeout_with_callback_and_timeout_and_arguments_0(
-                            cb.as_ref().unchecked_ref(),
-                            2000,
-                        );
+                    let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                        cb.as_ref().unchecked_ref(),
+                        2000,
+                    );
                     cb.forget();
                 }
             });
@@ -656,8 +652,7 @@ fn FirewallLog(
     // Distinct tag set across every authored rule — drives the
     // filter-chip row. Sorted so chips render deterministically.
     let distinct_tags: Vec<String> = {
-        let mut set: std::collections::BTreeSet<String> =
-            std::collections::BTreeSet::new();
+        let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
         for tags in rule_tags.values() {
             for t in tags {
                 set.insert(t.clone());
@@ -797,8 +792,7 @@ fn FirewallLog(
                     // An allow rule can't shadow itself; remove/hide
                     // don't have the same DNR-priority dynamic.
                     let shadowed_by = if action == "block" {
-                        crate::lint::block_shadowed_by(&all_allows, m)
-                            .map(|e| e.value.clone())
+                        crate::lint::block_shadowed_by(&all_allows, m).map(|e| e.value.clone())
                     } else {
                         None
                     };
@@ -851,9 +845,7 @@ fn FirewallLog(
             // site_rules alias-points at the global config, so
             // enumerating a second time would produce duplicate
             // rule rows in the log.
-            if !site_scope_rc.is_empty()
-                && site_scope_rc.as_str() != GLOBAL_SCOPE_KEY
-            {
+            if !site_scope_rc.is_empty() && site_scope_rc.as_str() != GLOBAL_SCOPE_KEY {
                 emit_rows(&mut rows, &site_scope_rc, &site_rules_rc);
             }
 
@@ -913,14 +905,18 @@ fn FirewallLog(
             let body = if rows.is_empty() {
                 view! {
                     <div class="no-sels">"No matching events"</div>
-                }.into_any()
+                }
+                .into_any()
             } else {
-                rows.into_iter().map(|row| {
-                    let events_for_row = by_rule.get(&row.rule_id).cloned().unwrap_or_default();
-                    view! {
-                        <FirewallLogRow row=row events=events_for_row />
-                    }
-                }).collect::<Vec<_>>().into_any()
+                rows.into_iter()
+                    .map(|row| {
+                        let events_for_row = by_rule.get(&row.rule_id).cloned().unwrap_or_default();
+                        view! {
+                            <FirewallLogRow row=row events=events_for_row />
+                        }
+                    })
+                    .collect::<Vec<_>>()
+                    .into_any()
             };
 
             view! {
@@ -1065,11 +1061,7 @@ fn FirewallLogRow(row: RuleRow, events: Vec<FirewallEvent>) -> impl IntoView {
         "no hits".to_string()
     };
     let status_color = if row.hits > 0 { "#125a12" } else { "#999" };
-    let last_hit = row
-        .last_t
-        .as_deref()
-        .map(time_only)
-        .unwrap_or_default();
+    let last_hit = row.last_t.as_deref().map(time_only).unwrap_or_default();
 
     view! {
         <div class="firewall-row"
@@ -1276,7 +1268,11 @@ fn BlockedSection(
     let has_diag = !diagnostics.is_empty();
     let blocked_len = blocked_urls.len();
 
-    let count_class = if block_count == 0 { "count zero" } else { "count" };
+    let count_class = if block_count == 0 {
+        "count zero"
+    } else {
+        "count"
+    };
 
     // Evidence copy payload: reverse order so newest first, join with newlines.
     let copy_payload: String = blocked_urls
@@ -1288,7 +1284,11 @@ fn BlockedSection(
                 time_only(&b.t),
                 b.resource_type.clone().unwrap_or_else(|| "?".into()),
                 b.url,
-                if b.pattern.is_empty() { "?".into() } else { b.pattern.clone() },
+                if b.pattern.is_empty() {
+                    "?".into()
+                } else {
+                    b.pattern.clone()
+                },
             )
         })
         .collect::<Vec<_>>()
@@ -1300,11 +1300,10 @@ fn BlockedSection(
         let label = copy_label;
         if let Some(window) = web_sys::window() {
             let cb = Closure::<dyn Fn()>::new(move || label.set("Copy"));
-            let _ = window
-                .set_timeout_with_callback_and_timeout_and_arguments_0(
-                    cb.as_ref().unchecked_ref(),
-                    1500,
-                );
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                cb.as_ref().unchecked_ref(),
+                1500,
+            );
             cb.forget();
         }
     };
@@ -1436,7 +1435,8 @@ fn RuleRow(diag: BlockDiagnostic) -> impl IntoView {
                         </span>
                     </div>
                 </div>
-            }.into_any();
+            }
+            .into_any();
         }
     };
     let status_class = format!("rule-status {}", diag.status);
@@ -1472,7 +1472,8 @@ fn RuleRow(diag: BlockDiagnostic) -> impl IntoView {
                     {urls}
                 </div>
             </div>
-        }.into_any()
+        }
+        .into_any()
     } else if diag.status == "no-traffic" && diag.fired == 0 {
         view! {
             <div class="rule-hint"
@@ -1483,7 +1484,8 @@ fn RuleRow(diag: BlockDiagnostic) -> impl IntoView {
                 "it can fetch. Not necessarily a bug - scroll/reload the page "
                 "to generate more traffic if you want to verify."
             </div>
-        }.into_any()
+        }
+        .into_any()
     } else {
         view! { <div /> }.into_any()
     };
@@ -1501,7 +1503,8 @@ fn RuleRow(diag: BlockDiagnostic) -> impl IntoView {
             </div>
             {hint}
         </div>
-    }.into_any()
+    }
+    .into_any()
 }
 
 /// Removed (DOM) section. Replaces the `#remove-count` / `#remove-list`
@@ -1569,8 +1572,16 @@ fn RemovedEvidence(removed_elements: Vec<RemovedElement>) -> impl IntoView {
             format!(
                 "{}\t{}\t(via {})",
                 time_only(&ev.t),
-                if ev.el.is_empty() { "?".to_string() } else { ev.el.clone() },
-                if ev.selector.is_empty() { "?".to_string() } else { ev.selector.clone() },
+                if ev.el.is_empty() {
+                    "?".to_string()
+                } else {
+                    ev.el.clone()
+                },
+                if ev.selector.is_empty() {
+                    "?".to_string()
+                } else {
+                    ev.selector.clone()
+                },
             )
         })
         .collect::<Vec<_>>()
@@ -1582,11 +1593,10 @@ fn RemovedEvidence(removed_elements: Vec<RemovedElement>) -> impl IntoView {
         let label = copy_label;
         if let Some(window) = web_sys::window() {
             let cb = Closure::<dyn Fn()>::new(move || label.set("Copy"));
-            let _ = window
-                .set_timeout_with_callback_and_timeout_and_arguments_0(
-                    cb.as_ref().unchecked_ref(),
-                    1500,
-                );
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                cb.as_ref().unchecked_ref(),
+                1500,
+            );
             cb.forget();
         }
     };
@@ -1597,7 +1607,11 @@ fn RemovedEvidence(removed_elements: Vec<RemovedElement>) -> impl IntoView {
         .map(|ev| {
             let ts = time_only(&ev.t);
             let title = format!("{} -> {}", ev.selector, ev.el);
-            let el = if ev.el.is_empty() { "?".to_string() } else { ev.el.clone() };
+            let el = if ev.el.is_empty() {
+                "?".to_string()
+            } else {
+                ev.el.clone()
+            };
             let sel = if ev.selector.is_empty() {
                 "?".to_string()
             } else {
@@ -1655,8 +1669,7 @@ fn HiddenSection(
     let has_selectors = !selectors.is_empty();
     let count_class = if total == 0 { "count zero" } else { "count" };
 
-    let remove_keys: std::collections::HashSet<String> =
-        remove_selectors.keys().cloned().collect();
+    let remove_keys: std::collections::HashSet<String> = remove_selectors.keys().cloned().collect();
 
     let selector_rows: Vec<_> = selectors
         .into_iter()
@@ -1668,7 +1681,8 @@ fn HiddenSection(
                     <span class="n" style="font-style:italic;color:#999;">
                         "- (removed)"
                     </span>
-                }.into_any()
+                }
+                .into_any()
             } else {
                 view! { <span class="n">{n}</span> }.into_any()
             };
@@ -1710,11 +1724,7 @@ fn time_only(iso: &str) -> String {
     }
     let s = d.to_time_string();
     // Format is "HH:MM:SS GMT...". Slice to 8 chars for time only.
-    s.as_string()
-        .unwrap_or_default()
-        .chars()
-        .take(8)
-        .collect()
+    s.as_string().unwrap_or_default().chars().take(8).collect()
 }
 
 /// Call-to-action row under the suggestions list. When the behavioral
@@ -1836,10 +1846,8 @@ fn set_timeout(ms: i32, f: impl FnOnce() + 'static) {
             f();
         }
     });
-    let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
-        cb.as_ref().unchecked_ref(),
-        ms,
-    );
+    let _ = window
+        .set_timeout_with_callback_and_timeout_and_arguments_0(cb.as_ref().unchecked_ref(), ms);
     cb.forget();
 }
 
@@ -1877,6 +1885,88 @@ fn MatchedSite(hostname: String, matched_domain: Option<String>) -> impl IntoVie
                 }.into_any(),
             }}
         </div>
+    }
+}
+
+/// At-a-glance row of the Global-scope spoof kinds currently in
+/// effect. These are the "always-on" defenses (sendbeacon kill,
+/// clipboard-read kill, device-probe kills) that work without any
+/// per-site rule authoring. Answers the user's question: "how do I
+/// visually know these are active?" Renders nothing when no global
+/// spoofs are configured, so popup stays compact for users who
+/// haven't enabled any.
+#[component]
+fn GlobalProtections(global_spoofs: Vec<crate::types::RuleEntry>) -> impl IntoView {
+    let enabled: Vec<String> = global_spoofs
+        .iter()
+        .filter(|e| !e.disabled && !e.value.is_empty())
+        .map(|e| e.value.clone())
+        .collect();
+
+    view! {
+        {move || {
+            if enabled.is_empty() {
+                view! { <div /> }.into_any()
+            } else {
+                let pills = enabled.iter().map(|kind| {
+                    let title = kill_switch_description(kind);
+                    view! {
+                        <span title=title
+                              style="display:inline-block; padding: 2px 7px;
+                                     margin: 0 4px 2px 0; background: #2d7a4a;
+                                     color: #fff; border-radius: 10px;
+                                     font-size: 10px; font-weight: 600;
+                                     letter-spacing: 0.2px;">
+                            {kind.clone()}
+                        </span>
+                    }
+                }).collect::<Vec<_>>();
+                view! {
+                    <div class="rust-global-protections"
+                         title="Active globally on every tab. Delete from options if you need a specific API."
+                         style="padding: 6px 10px; font-size: 11px;
+                                background: #ebf5ef; border: 1px solid #c3e0cf;
+                                border-radius: 4px; margin: 4px 0;">
+                        <span style="color:#2d7a4a; font-weight:600;
+                                     margin-right: 6px;">
+                            "Global protections active:"
+                        </span>
+                        {pills}
+                    </div>
+                }.into_any()
+            }
+        }}
+    }
+}
+
+/// One-liner tooltip per kill-switch kind. Tooltip surfaces the
+/// "why" without requiring the user to open the options page.
+/// Falls back to an empty string for kinds we don't recognize
+/// (forward-compat for any future spoof kind added before the
+/// tooltip table is updated).
+fn kill_switch_description(kind: &str) -> &'static str {
+    match kind {
+        "sendbeacon" => {
+            "navigator.sendBeacon returns true without firing. Page-unload telemetry API; no user-side benefit."
+        }
+        "clipboard-read" => {
+            "navigator.clipboard.readText rejects with NotAllowedError. Kills paste-sniffing probes."
+        }
+        "bluetooth" => {
+            "Bluetooth.requestDevice rejects with NotFoundError. Disable if you use WebBluetooth."
+        }
+        "usb" => "USB.requestDevice rejects with NotFoundError. Disable if you use WebUSB.",
+        "hid" => "HID.requestDevice rejects with NotFoundError. Disable if you use WebHID.",
+        "serial" => "Serial.requestPort rejects with NotFoundError. Disable if you use WebSerial.",
+        "webgl-unmasked" => {
+            "WebGL UNMASKED_VENDOR / UNMASKED_RENDERER return constants instead of your GPU model."
+        }
+        "canvas" => {
+            "Canvas toDataURL / toBlob / getImageData return constant bland bytes. Breaks legit canvas use."
+        }
+        "audio" => "OfflineAudioContext rendering resolves to a silent buffer.",
+        "font-enum" => "measureText returns length-only metrics, killing installed-font probing.",
+        _ => "",
     }
 }
 
@@ -2023,10 +2113,8 @@ where
             let kind = kind.clone();
             let on_mutated = on_mutated.clone();
             spawn_local(async move {
-                match chrome_bridge::accept_suggestion(
-                    &hostname, &layer, &value, &kind, scope,
-                )
-                .await
+                match chrome_bridge::accept_suggestion(&hostname, &layer, &value, &kind, scope)
+                    .await
                 {
                     Ok(()) => {
                         if let Some(tid) = tab_id {
@@ -2316,11 +2404,10 @@ fn EvidencePanel(evidence: Vec<String>) -> impl IntoView {
         // that's tiny; use gloo-less Window.setTimeout via web_sys.
         if let Some(window) = web_sys::window() {
             let cb = Closure::<dyn Fn()>::new(move || label.set("Copy"));
-            let _ = window
-                .set_timeout_with_callback_and_timeout_and_arguments_0(
-                    cb.as_ref().unchecked_ref(),
-                    1500,
-                );
+            let _ = window.set_timeout_with_callback_and_timeout_and_arguments_0(
+                cb.as_ref().unchecked_ref(),
+                1500,
+            );
             cb.forget();
         }
     };

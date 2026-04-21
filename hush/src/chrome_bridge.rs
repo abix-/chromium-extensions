@@ -29,8 +29,8 @@ pub fn to_js<T: Serialize + ?Sized>(v: &T) -> Result<JsValue, serde_wasm_bindgen
 }
 use js_sys::{Promise, Reflect};
 use serde::{Deserialize, Serialize};
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 use wasm_bindgen_futures::JsFuture;
 
 fn send_fn() -> Result<(JsValue, js_sys::Function), JsValue> {
@@ -196,11 +196,7 @@ pub async fn set_option_bool(key: &str, value: bool) -> Result<(), JsValue> {
         .ok()
         .filter(|v| !v.is_undefined() && !v.is_null())
         .unwrap_or_else(|| js_sys::Object::new().into());
-    Reflect::set(
-        &opts,
-        &JsValue::from_str(key),
-        &JsValue::from_bool(value),
-    )?;
+    Reflect::set(&opts, &JsValue::from_str(key), &JsValue::from_bool(value))?;
 
     // Write it back via chrome.storage.local.set({options: {...}}).
     let set_payload = js_sys::Object::new();
@@ -338,9 +334,7 @@ pub async fn get_default_allowlist() -> Result<(Vec<String>, Vec<String>, Vec<St
             Ok(a) => a,
             Err(_) => return Vec::new(),
         };
-        arr.iter()
-            .filter_map(|v| v.as_string())
-            .collect()
+        arr.iter().filter_map(|v| v.as_string()).collect()
     }
     Ok((
         to_vec(&seed, "iframes"),
@@ -490,7 +484,10 @@ pub async fn get_active_tab() -> Result<ActiveTab, JsValue> {
         .dyn_into::<js_sys::Array>()
         .map_err(|_| JsValue::from_str("chrome.tabs.query did not return an array"))?;
     if arr.length() == 0 {
-        return Ok(ActiveTab { tab_id: None, url: String::new() });
+        return Ok(ActiveTab {
+            tab_id: None,
+            url: String::new(),
+        });
     }
     let first = arr.get(0);
     let tab_id = Reflect::get(&first, &JsValue::from_str("id"))
@@ -690,10 +687,7 @@ pub async fn get_popup_storage() -> Result<PopupStorage, JsValue> {
     let get_fn: js_sys::Function = Reflect::get(&local, &JsValue::from_str("get"))?
         .dyn_into()
         .map_err(|_| JsValue::from_str("chrome.storage.local.get is not a function"))?;
-    let keys = js_sys::Array::of2(
-        &JsValue::from_str("options"),
-        &JsValue::from_str("config"),
-    );
+    let keys = js_sys::Array::of2(&JsValue::from_str("options"), &JsValue::from_str("config"));
     let promise: Promise = get_fn
         .call1(&local, &keys.into())?
         .dyn_into()
@@ -720,6 +714,42 @@ pub struct PopupStorage {
     pub config: Config,
 }
 
+/// Fetch a text file shipped inside the extension (e.g. a starter
+/// profile under `profiles/`). Uses `chrome.runtime.getURL` + the
+/// global `fetch` - same pattern as `get_default_allowlist` and
+/// `reset_config_to_defaults`. Caller handles JSON parsing.
+pub async fn fetch_extension_text(path: &str) -> Result<String, JsValue> {
+    let window = web_sys::window().ok_or_else(|| JsValue::from_str("no window"))?;
+    let chrome = Reflect::get(&window, &JsValue::from_str("chrome"))?;
+    let runtime = Reflect::get(&chrome, &JsValue::from_str("runtime"))?;
+    let get_url_fn: js_sys::Function = Reflect::get(&runtime, &JsValue::from_str("getURL"))?
+        .dyn_into()
+        .map_err(|_| JsValue::from_str("chrome.runtime.getURL is not a function"))?;
+    let url = get_url_fn
+        .call1(&runtime, &JsValue::from_str(path))?
+        .as_string()
+        .ok_or_else(|| JsValue::from_str("chrome.runtime.getURL returned non-string"))?;
+
+    let fetch_fn: js_sys::Function = Reflect::get(&window, &JsValue::from_str("fetch"))?
+        .dyn_into()
+        .map_err(|_| JsValue::from_str("window.fetch is not a function"))?;
+    let fetch_promise: Promise = fetch_fn
+        .call1(&window, &JsValue::from_str(&url))?
+        .dyn_into()
+        .map_err(|_| JsValue::from_str("fetch did not return a Promise"))?;
+    let response = JsFuture::from(fetch_promise).await?;
+    let text_fn: js_sys::Function = Reflect::get(&response, &JsValue::from_str("text"))?
+        .dyn_into()
+        .map_err(|_| JsValue::from_str("Response.text is not a function"))?;
+    let text_promise: Promise = text_fn
+        .call0(&response)?
+        .dyn_into()
+        .map_err(|_| JsValue::from_str("Response.text did not return a Promise"))?;
+    let text = JsFuture::from(text_promise).await?;
+    text.as_string()
+        .ok_or_else(|| JsValue::from_str("Response.text did not return a string"))
+}
+
 pub async fn scan_once(tab_id: i32) -> Result<(), JsValue> {
     let window = web_sys::window().ok_or_else(|| JsValue::from_str("no window"))?;
     let chrome = Reflect::get(&window, &JsValue::from_str("chrome"))?;
@@ -728,7 +758,11 @@ pub async fn scan_once(tab_id: i32) -> Result<(), JsValue> {
         .dyn_into()
         .map_err(|_| JsValue::from_str("chrome.tabs.sendMessage is not a function"))?;
     let msg = js_sys::Object::new();
-    Reflect::set(&msg, &JsValue::from_str("type"), &JsValue::from_str("hush:scan-once"))?;
+    Reflect::set(
+        &msg,
+        &JsValue::from_str("type"),
+        &JsValue::from_str("hush:scan-once"),
+    )?;
     let promise: Promise = send_fn
         .call2(&tabs, &JsValue::from_f64(tab_id as f64), &msg.into())?
         .dyn_into()

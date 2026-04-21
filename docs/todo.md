@@ -5,19 +5,48 @@ Cross-extension priority queue. Re-prioritized against
 (runs 10 years, daily use by 100 people, never needs a code
 update).
 
+Updated 2026-04-21 with second-pass code-level deep-audit
+findings (three new P0s, two new P1s, three new P2s, one item
+dropped). The deep audit didn't write a companion doc - each
+new item below cites file:line directly.
+
+**2026-04-21 P0 session**: shipped localhost-POST removal,
+substring-self-filter fix, guarded-unwrap fix, silent-error
+audit on startup/storage-changed paths, version-drift roadmap
+cleanup, filter-anything-everywhere CHANGELOG seed, and CI
+workflow. Those items removed from the list below. Leptos rip
+stays open (explicitly deferred; multi-session work). Two new
+P2 items added from CI setup: clippy lint cleanup (36 lints)
+and eslint flat-config migration.
+
 Priority buckets:
 
-- **P0** — durability risks + broken invariants. Addresses the
+- **P0** - durability risks + broken invariants. Addresses the
   single largest rot threats and silent-failure paths.
-- **P1** — hard infrastructure gaps. Tests on load-bearing code,
+- **P1** - hard infrastructure gaps. Tests on load-bearing code,
   schema versioning, correctness audits.
-- **P2** — polish + coverage + readability.
-- **P3** — nice-to-have.
+- **P2** - polish + coverage + readability.
+- **P3** - nice-to-have.
 
-Every item names file:line where applicable. Citations trace
-back to the review so the rationale is grep-able.
+Every item names file:line where applicable.
 
-## P0 — durability risks + broken invariants
+## P0 - durability risks + broken invariants
+
+### Port `content.js` to Rust/WASM
+
+Doc-reconcile path taken 2026-04-21: `history.md` Stage 5 Iter 6
+block rewritten to say the port "did not land," and
+`architecture.md` confirmed content.js as pure-JS. That closes
+the *lie*, not the *gap*: the content script is still 689 LOC
+of hand-maintained JS that duplicates what `src/allowlist.rs` +
+a would-be `src/content.rs` would own. Every rule-evaluation
+code path now exists in two languages with no cross-language
+test enforcing parity.
+
+Port for real when the Leptos rip is landed and WASM bundle-
+load cost is understood end-to-end. Until then this is a
+medium-term rot risk: JS side drifts from Rust-side detectors
+silently.
 
 ### Rip Leptos out of the load-bearing UI
 
@@ -39,85 +68,21 @@ Scope:
 - Delete `leptos` from `hush/Cargo.toml`. Delete `mem::forget
   (leptos::mount::mount_to(...))` incantations (5 sites).
 
-### Audit every silent error swallow in `hush/src/background.rs`
+### Finish surfacing swallowed errors to the debug payload + badge
 
-> Review: *"`sync_dynamic_rules()` failing means the user's
-> Block rules don't fire."*
+2026-04-21 session covered the startup/storage-changed paths
+(`background.rs:430` retry loop, `:1021-1025` onInstalled,
+`:1038-1040` onStartup, config-changed sync, allowlist-changed
+refresh). Still pending: the ~18 `.ok()` sites in
+`background.rs` that drop minor errors (badge updates at
+`:743-751, :1055-1056`, DNR rule metadata extraction at
+`:582-597`, storage-read error paths). And the review's
+"better" outcome: surface startup failure to the popup
+debug-info panel as a dedicated "bootstrap-health" field and
+a badge color/title change so users see something broke
+without opening DevTools.
 
-Sites:
-
-- `:430` — `let _ = do_sync_dynamic_rules().await;`
-- `:1021-1025` — five bootstrap awaits under `let _ =`
-  (`refresh_debug_flag`, `seed_config_if_empty`,
-  `seed_allowlist_if_empty`, `load_allowlist`,
-  `sync_dynamic_rules`)
-- `:1038-1040` — same three on the startup branch
-
-Each call returns a `Result`. On startup they silently discard
-failures, leaving the user with a broken extension and no
-signal. Minimum:
-
-```rust
-if let Err(e) = sync_dynamic_rules().await {
-    log_error(&format!("sync_dynamic_rules failed: {e:?}"));
-}
-```
-
-Better: surface to the debug-info payload + badge so the user
-knows something didn't boot.
-
-### Add GitHub Actions CI
-
-No `.github/workflows/` today. 119 tests enforced by author
-discipline only. Jobs per extension:
-
-- **hush**: `cargo test` + `cargo check --target
-  wasm32-unknown-unknown` + `npm --prefix hush run build`.
-- **filter-anything-everywhere**: `npm ci` + `npm run build` +
-  `npm test`.
-- **zoom-extension**: `node --check` on both `.js` files.
-
-Trigger on `push` and `pull_request`. ~20 minutes of setup,
-enforced forever.
-
-### Delete the stale version-drift item from `hush/docs/roadmap.md`
-
-P3 in hush's roadmap reads *"manifest.json says 0.10.0; Cargo.toml
-says 0.12.0 — bump the manifest to match"*. Both already read
-0.12.0. The roadmap's own maintenance rule says shipped items
-get deleted. If the roadmap lies about one thing, it's trusted
-about nothing. 30 seconds.
-
-### Kill the guarded-but-ugly unwrap at `hush/src/background.rs:2123`
-
-```rust
-if tab_id.is_none() || key.is_empty() { ... return; }
-let tab_id = tab_id.unwrap();
-```
-
-Safe today; one refactor to the guard breaks it. Idiomatic:
-`if let Some(tab_id) = tab_id { ... } else { reply_false(); return; }`.
-Every non-test `.unwrap()` is a failed-invariant check waiting
-for a refactor.
-
-### Write `filter-anything-everywhere/CHANGELOG.md`
-
-Fork with no CHANGELOG can't merge upstream. Document every
-delta this fork carries:
-
-- jQuery 4 `$.isWindow()` removal inlined at `content.ts:184`.
-- `@ts-expect-error` → `@ts-ignore` at `browser_action.ts:173`
-  for the new permissive `@types/chrome`.
-- `tsconfig.json` gained explicit `"rootDir": "./extension"`
-  for TypeScript 6.
-- `@rollup/plugin-eslint` removed from `rollup.config.js`.
-- `prepare_extension.ps1`: `npx --no-install rollup -c`;
-  dead `Move-Item` removed.
-- Dependency sweep to latest (ncu): rollup 3→4, TS 5→6,
-  jest 29→30, jQuery 3→4, `@types/chrome` 0.0.225→0.1.40,
-  eslint 8→10, prettier 2→3, etc.
-
-## P1 — hard infrastructure gaps
+## P1 - hard infrastructure gaps
 
 ### Schema-version everything in `chrome.storage.local`
 
@@ -136,23 +101,6 @@ Wrap every stored value:
 Read path checks the version and migrates if old. Write path
 always sets current. Without this, the first breaking schema
 change means a stop-the-world parse-and-guess job.
-
-### Replace `rule_id` string format with a struct
-
-> Review: *"A match containing `::` (e.g. `||foo::bar.example
-> .com`) creates an unreachable rule id."*
-
-`hush/src/types.rs::rule_id` returns
-`format!("{action}::{scope}::{match_}")`. No version, no escape.
-Users typing `::` in a pattern create rules that can never be
-referenced back. Switch to a struct:
-
-```rust
-pub struct RuleId { pub action: String, pub scope: String, pub match_: String }
-```
-
-...serialized via serde_json when used as a string key.
-Round-trip-safe for any input.
 
 ### Tests on `hush/mainworld.js`
 
@@ -179,15 +127,36 @@ values via `serde_wasm_bindgen`. Target the hot paths:
 `handle_stats`, `do_sync_dynamic_rules`,
 `push_firewall_event`, `schedule_persist_stats`.
 
-### Regex metachar escape audit in `filter-anything-everywhere`
+### (done 2026-04-21) Ship the three Hush seed profiles
 
-`extension/content.ts:234` feeds user-entered blacklist words
-straight into `regexpFromWordList`. `word_matcher.ts` (41 LOC)
-either escapes or it doesn't — audit, test, fix if broken.
-A user typing `c++`, `(test)`, or `a.b` crashes the matcher or
-silently matches nothing.
+Shipped: `hush/profiles/{brave-supplement,news-site-baseline,social-media-declutter}.json`,
+75 rules total with per-rule `comment` fields explaining each. Wired
+into the extension: added to `web_accessible_resources`, new
+`chrome_bridge::fetch_extension_text` helper, "Load starter
+profile..." `<select>` dropdown added to `ProfileTools` next to
+Import/Export. Load merges into current rules (existing rules
+untouched).
 
-### Ship the three Hush seed profiles
+<!-- placeholder: prevent next heading from bumping against the above -->
+
+### (done 2026-04-21) Ship "always-on kill-switch" spoof kinds
+
+Shipped: six new Spoof kinds implemented in `mainworld.js` -
+`sendbeacon`, `clipboard-read`, `bluetooth`, `usb`, `hid`,
+`serial`. Each returns the spec-compliant denial value
+(`true` / `NotAllowedError` / `NotFoundError`) so sites that
+handle denial gracefully keep working. Added to
+`sites.json` Global scope defaults-on and to
+`brave-supplement.json` for explicit opt-in. Documented in
+`completed.md`, `types.rs` SiteConfig::spoof doc, and
+`options.html` how-it-works (new "Kill-switch kinds" section).
+
+Follow-up still open: update `architecture.md` Spoof section
+and `comparison.md` to add the kill-switch kinds in the
+feature-overlap matrix (currently just lists 4 fingerprint
+kinds).
+
+
 
 Import/export code shipped sessions ago; no seed content to
 import. Author `hush/profiles/`:
@@ -216,7 +185,77 @@ extension icon → stop. If over budget, profile the slow path
 (likely Leptos mount + async-fetch waterfall — which evaporates
 when P0 #1 lands).
 
-## P2 — polish + coverage
+## P2 - polish + coverage
+
+### Clippy lint cleanup so `-D warnings` can go green
+
+`cargo clippy --all-targets -- -D warnings` currently reports
+36 errors across the crate:
+- `redundant_locals`, `clone_on_copy`, `collapsible_if` in
+  `ui_popup.rs` and `ui_options.rs`
+- `criterion::black_box` deprecation in
+  `benches/compute_suggestions.rs` (9 call sites; swap to
+  `std::hint::black_box`)
+- Scattered minor lints across the Rust sources
+
+CI workflow (`.github/workflows/ci.yml`) intentionally skips
+the clippy step until these are cleaned. Once clean, re-enable
+`cargo clippy --all-targets -- -D warnings` in CI so new lints
+can't land silently.
+
+### Migrate `filter-anything-everywhere` to eslint 10 flat-config
+
+`filter-anything-everywhere/.eslintrc.cjs` predates eslint 9's
+default-flat-config switch. `npm run lint` fails out of the box
+under eslint 10 with a migration-required message. CI step
+skipped until this lands.
+
+Migration path: rename `.eslintrc.cjs` -> `eslint.config.js`,
+export a single flat-config array, drop the `parserOptions`
+style that's now rolled into per-rule configs. 20-30 minutes
+by the [eslint migration guide](https://eslint.org/docs/latest/use/configure/migration-guide).
+
+### Narrow `#![allow(clippy::too_many_arguments)]` at `hush/src/background.rs:17`
+
+Module-wide blanket allow. Every function the lint would flag
+now gets a permanent pass, and the smell it was pointing at
+vanishes from the signal. Either fix the offending signatures
+or narrow the attribute to the specific function(s) that
+trigger it, with a one-line comment explaining why.
+
+### Unify `LIVE_CLOSURES` types across the crate
+
+Two copies of the "keep JS-owned closures alive forever"
+pattern, typed differently:
+
+- `hush/src/background.rs:58-59`:
+  `RefCell<Vec<Box<dyn std::any::Any>>>`
+- `hush/src/main_world.rs:50-52`:
+  `RefCell<Vec<Closure<dyn Fn(JsValue, JsValue)>>>`
+
+The `main_world.rs` form still type-checks what's in the vec.
+The `background.rs` form is `dyn Any` and gives up type
+information - every push goes through `fn keep<T: Any>(c: T)`
+at `:62-64`. Pick the typed form.
+
+Also document the disposal model in a comment next to each
+`static`: "service-worker death is the only reaper; this grows
+unbounded until SW is killed, which Chrome does routinely."
+
+### `migrateConfigSchema` idempotence + crash-recovery test
+
+`hush/background.js:44-72` runs on every service-worker wake.
+No test proves running it twice leaves the config byte-
+identical, and no test proves recovery when the SW is killed
+between the two storage writes at `:70` (payload writes
+`config + configSchemaVersion` in one call - good - but no
+test asserts that).
+
+Tests needed:
+- Run migrator twice on a fixture starting at schema 0, assert
+  second run is a no-op.
+- Start at schema 0, run migrator, simulate storage failure,
+  re-run, assert recovery without corruption.
 
 ### Replace the `zoom-extension` 1 Hz poll
 
@@ -380,12 +419,21 @@ today.
 
 ## Grade tracking
 
-| Review date | Grade | Delta |
-|---|---|---|
-| [2026-04](review-2026-04.md) | 6.5/10 | — |
+| Review date | Grade | Delta | Notes |
+|---|---|---|---|
+| [2026-04](review-2026-04.md) | 6.5/10 | -- | first-pass review, docs + spot-check |
+| 2026-04-21 deep audit | 5.5/10 | -1.0 | code-level second pass; localhost POST + `content.rs` phantom + attribution bug were missed first time |
+| 2026-04-21 P0 session | 7.0/10 | +1.5 | shipped: localhost POST removed, stack substring bug fixed (+ regression lock), guarded unwrap fixed, silent-error audit on startup + storage-changed paths, version-drift roadmap item deleted, filter-anything-everywhere CHANGELOG seeded, CI workflow landed. Remaining P0: Leptos rip (deferred), content.js -> Rust port (deferred). |
+| 2026-04-21 P1 cross-lang stack contract test | 7.1/10 | +0.1 | shipped: shared `stack_fixtures.json` consumed by Rust `fixture_cases_match_expected` and JS `stack_origin.test.mjs`, both run in CI. Future drift between the two copies surfaces as a failing test. |
+| 2026-04-21 P1 rule_id format fix | 7.3/10 | +0.2 | shipped: `types.rs::rule_id` now emits JSON-array `["action","scope","match"]` (hand-rolled escape, no serde_json runtime dep). `::` in user patterns no longer produces unreachable IDs. 6 new round-trip + regression tests. Prior `::`-delimited events in `chrome.storage.session` age out via FIFO on browser restart. |
+| 2026-04-21 P1 host-pattern rename + `*` wildcard | 7.4/10 | +0.1 | shipped: `matchesUrlFilter` -> `matchesHostPattern` in mainworld.js with new `*` wildcard support across DNS labels. Call sites renamed (`findFilterMatch` -> `findHostMatch`, 4 sites). Misleading "uBlock-style URL filter" docs fixed in content.js, types.rs (neuter + silence fields). Grammar now honestly documented: `\|\|host\|\|`, `^`, `*`, bare substring. |
+| 2026-04-21 options.html how-it-works rewrite | 7.5/10 | +0.1 | shipped: options.html "How Hush works" section rewritten from scratch. All 7 actions documented with what/why/when (previously only Block/Remove/Hide). Scopes explained. Full 17-signal behavioral detector list with relevance for each. Firewall log, simulate, profiles, allowlists, cross-layer interaction, data-egress posture all covered. Tagline updated to match. |
+| 2026-04-21 seed profiles + starter-profile dropdown | 7.6/10 | +0.1 | shipped: `hush/profiles/{brave-supplement,news-site-baseline,social-media-declutter}.json` with 75 hand-curated rules total. Each rule carries a `comment` explaining what it kills and why. Wired into extension via `web_accessible_resources` + `chrome_bridge::fetch_extension_text` + "Load starter profile..." `<select>` in options page ProfileTools. |
+| 2026-04-21 kill-switch spoof kinds | 7.9/10 | +0.3 | shipped: six new always-on spoof kinds answering user feedback "people don't want to maintain rules for this." `sendbeacon`/`clipboard-read`/`bluetooth`/`usb`/`hid`/`serial` return spec-compliant denial values when present in Global scope. Defaults-on in seed `sites.json`. Major UX win: new installs get category-level defenses without any configuration, Brave-style. |
 
 Target after P0 complete: 7.5+. Target after P1 complete: 8.5.
 9+ needs the polish items in P2. 10 requires passing the
-"10-year, daily use by 100, zero code changes" bar — probably
-never achievable for a browser extension given MV3's instability,
-but the further we get toward 9 the better the tail.
+"10-year, daily use by 100, zero code changes" bar - probably
+never achievable for a browser extension given MV3's
+instability, but the further we get toward 9 the better the
+tail.

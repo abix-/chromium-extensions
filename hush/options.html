@@ -308,7 +308,7 @@
 </head>
 <body>
   <h1>Hush</h1>
-  <p class="tagline">Per-site element hiding, DOM removal, and network blocking.</p>
+  <p class="tagline">Firewall-style rule engine for Chrome. Seven actions, per-site or global scope, behavioral detector that suggests rules from what the page actually does.</p>
 
   <!-- Flat firewall-style rule table rendered by the Leptos
        RulesTable component (src/ui_options.rs). Every rule is one
@@ -319,33 +319,41 @@
   <section class="how">
     <h2>How Hush works</h2>
     <p>
-      Hush applies up to three independent layers of defense per site. Any single layer would help;
-      combined they're airtight for the rules you've defined. Here's what each layer does and when to
-      use it.
+      Hush is a <b>firewall</b> for your browser. Every request a page makes, every element it
+      renders, and every fingerprint API it reads is checked against rules you authored. Matched
+      things get a chosen action: dropped, allowed, neutered, silenced, removed, hidden, or
+      spoofed. All logic runs locally; Hush itself never sends anything to any server.
+    </p>
+    <p>
+      A rule is a <b>(scope, action, match)</b> triple. <b>Scope</b> is either a hostname or the
+      reserved <code>Global</code> key. <b>Action</b> is one of the seven below. <b>Match</b> is a
+      URL pattern, a CSS selector, a script-origin host pattern, or a fingerprint kind tag -
+      depending on the action. Rules are evaluated first-match-wins within each action.
     </p>
 
+    <h3>The seven actions</h3>
+
     <details class="layer" open>
-      <summary><span class="layer-num">1</span>Block (network) — request is killed before it leaves the browser</summary>
+      <summary><span class="layer-num">1</span>Block (network) &mdash; kills the request before it leaves the browser</summary>
       <p>
-        Patterns in the <code>Block</code> list register a rule in Chrome's
-        <code>declarativeNetRequest</code> engine. When any request matches, the browser's network
-        stack refuses it <b>before</b> DNS resolution, TCP connection, or TLS handshake. No bytes are
-        sent to any server. The originating <code>fetch()</code> or iframe load fails locally with
-        <code>net::ERR_BLOCKED_BY_CLIENT</code>.
+        Patterns in the <code>Block</code> list register rules in Chrome's
+        <code>declarativeNetRequest</code> engine. A matching request is refused
+        <b>before</b> DNS resolution, TCP connection, or TLS handshake. No bytes go to any server.
+        The originating <code>fetch()</code>, <code>&lt;script&gt;</code> load, or iframe load
+        fails locally with <code>net::ERR_BLOCKED_BY_CLIENT</code>.
+      </p>
+      <p><b>Why it's relevant.</b>
+        A modern news or social page loads 40-200 third-party requests on first paint. Every one
+        of those is a potential tracker, telemetry pipe, or fingerprint probe. Block is the most
+        complete defense available to an extension: no script runs, no response is parsed, no
+        iframe loads. If you can identify the URL, Block wins. Chrome's DNR enforces at the network
+        layer with zero extension-JS involvement, so it has no perf cost on matched requests.
       </p>
       <p>
-        Rules are declared under a site in your config but applied as
-        <b>global URL-pattern matches</b>. A rule under <code>reddit.com</code> blocks
-        its target URL anywhere it's requested &mdash; including from third-party
-        iframes embedded on Reddit (redgifs, YouTube, ad iframes, etc.). Chrome's
-        <code>initiatorDomains</code> condition matches the initiating frame's origin, not the tab
-        you're looking at, so using it would miss cross-origin iframe traffic. Per-site
-        rule-authoring is preserved as your mental model, but execution is global by URL.
-        If you need a URL blocked only on one site, make the pattern itself more specific.
-      </p>
-      <p>
-        Blocking is most thorough at this layer &mdash; no script runs, no response is parsed,
-        no iframe loads.
+        Rules are declared under a site in your config but applied as <b>global URL-pattern
+        matches</b>. A rule under <code>reddit.com</code> blocks its target URL anywhere it's
+        requested - including from third-party iframes embedded on Reddit. Site-keyed authoring
+        is how you organize your rules; execution is global by URL.
       </p>
       <p><b>Pattern syntax (uBlock-style):</b></p>
       <div class="key">
@@ -358,113 +366,448 @@
         <span class="k">*.cdn.example.com</span>
         <span>wildcard on subdomain (<code>*</code> = any characters)</span>
         <span class="k">^</span>
-        <span>separator anchor. Rarely needed after <code>||domain</code> (the domain anchor already handles it) and can be problematic with hyphenated subdomains.</span>
+        <span>separator anchor. Rarely needed after <code>||domain</code>; can be problematic with hyphenated subdomains.</span>
       </div>
-      <p><b>When to use:</b> whenever the request itself is what you want gone — tracking pixels,
-      ad scripts, telemetry beacons, widget iframes, API calls to unwanted services.</p>
+      <p><b>When to pick Block:</b> the request itself is what you want gone - tracking pixels, ad
+      scripts, telemetry beacons, widget iframes, API calls to unwanted services.</p>
     </details>
 
     <details class="layer">
-      <summary><span class="layer-num">2</span>Remove (DOM) — element is physically deleted</summary>
+      <summary><span class="layer-num">2</span>Allow (exception) &mdash; the counter-rule to Block</summary>
       <p>
-        Selectors in the <code>Remove</code> list are physically excised from the DOM via
-        <code>element.remove()</code>. A <code>MutationObserver</code> watches every DOM change, so
-        elements inserted later (by the site's SPA router, infinite scroll, modals, etc.) get removed
-        as soon as they appear.
+        Patterns in the <code>Allow</code> list override Block rules via DNR priority. For
+        Remove/Hide, an Allow selector excludes matching elements from those passes.
       </p>
+      <p><b>Why it's relevant.</b>
+        Sometimes you want to Block a domain globally but carve out a single site-specific path.
+        Example: global Block on <code>||doubleclick.net</code>; Allow
+        <code>||doubleclick.net/specific-study/</code> only on <code>research.example.com</code>.
+        Without Allow you'd have to delete the Block; with Allow you keep the default protection
+        and poke one hole.
+      </p>
+      <p><b>Pattern syntax:</b> uBlock-style URL patterns for network Allow, CSS selectors for
+      DOM Allow.</p>
+      <p><b>When to pick Allow:</b> whenever a global rule is too broad for one specific site.</p>
+    </details>
+
+    <details class="layer">
+      <summary><span class="layer-num">3</span>Neuter (capture denial) &mdash; stops session-replay and engagement trackers at registration</summary>
       <p>
-        This layer frees event listeners, breaks any internal references the element held, and
-        stops anything that depends on the element being in the tree. Some JavaScript libraries
-        voluntarily pause work when their target element is removed.
+        At <code>document_start</code>, Hush wraps
+        <code>EventTarget.prototype.addEventListener</code>. When a script whose origin matches
+        your Neuter pattern tries to register an interaction listener
+        (<code>mousemove</code>, <code>keydown</code>, <code>click</code>, <code>scroll</code>,
+        <code>wheel</code>, <code>touch*</code>) or a lifecycle listener
+        (<code>visibilitychange</code>, <code>focus</code>, <code>blur</code>,
+        <code>pagehide</code>, <code>pageshow</code>, <code>beforeunload</code>), the registration
+        is silently dropped.
+      </p>
+      <p><b>Why it's relevant.</b>
+        Session-replay vendors (Hotjar, FullStory, Clarity, LogRocket, Smartlook, Mouseflow) record
+        every mouse movement, scroll, keystroke, and page-visibility change and ship the trace to
+        their servers for later playback. Curated blocklists can only kill these when the
+        vendor's script loads from a known CDN; when the site ships a <b>bundled</b> replay
+        library (increasingly common), the list can't help. Neuter intervenes one layer upstream:
+        no listener registered = no capture possible, regardless of where the script came from.
+      </p>
+      <p><b>Pattern syntax:</b> host-anchor pattern against the <i>initiating script</i>'s host,
+      not the page URL.</p>
+      <div class="key">
+        <span class="k">||hotjar.com</span><span>any script loaded from hotjar.com or a subdomain</span>
+        <span class="k">||*.fullstory.com</span><span>any fullstory.com subdomain</span>
+        <span class="k">||vendor-cdn.example.com^</span><span>trailing <code>^</code> accepted as a no-op</span>
+      </div>
+      <p><b>When to pick Neuter vs Block:</b> use Block when you can kill the vendor's
+      <i>script URL</i> (upstream-most defense). Use Neuter when you can only identify the vendor
+      by the <i>origin of calls into the listener API</i> - typically when the script is bundled
+      into first-party code and has no distinct network identity.</p>
+    </details>
+
+    <details class="layer">
+      <summary><span class="layer-num">4</span>Silence (exfil denial) &mdash; fake-succeeds outbound telemetry</summary>
+      <p>
+        Hush wraps <code>window.fetch</code>, <code>XMLHttpRequest.send</code>,
+        <code>navigator.sendBeacon</code>, and <code>WebSocket.send</code>. When the calling
+        script's origin matches your Silence pattern, the call returns a fake success (HTTP 204 for
+        fetch/XHR, <code>true</code> for sendBeacon) without actually writing to the network. The
+        calling code sees no error.
+      </p>
+      <p><b>Why it's relevant.</b>
+        Fallback for capture libraries that Neuter can't reach - the ones that read directly from
+        event streams or DOM state without registering listeners through the public API. If you
+        can't stop them from collecting, stop them from exfiltrating.
+      </p>
+      <p><b>Pattern syntax:</b> same host-anchor pattern grammar as Neuter, matched against the
+      initiating script's host.</p>
+      <p><b>When to pick Silence:</b> when Neuter can't match by script origin (bundled library,
+      anonymous source-map obfuscation) but you can still attribute the exfil calls to a specific
+      script host.</p>
+    </details>
+
+    <details class="layer">
+      <summary><span class="layer-num">5</span>Remove (DOM) &mdash; physically deletes elements</summary>
+      <p>
+        Selectors in <code>Remove</code> are deleted via <code>element.remove()</code>. A
+        <code>MutationObserver</code> watches every DOM change; elements inserted later by SPA
+        routers, infinite-scroll, modal mounts, or ad auctions are removed as soon as they appear.
+      </p>
+      <p><b>Why it's relevant.</b>
+        Promoted posts, algorithmic feed recommendations, cookie banners, newsletter popups,
+        sticky headers, "Brand Affiliate" tags, sidebar widgets - none of these are on public
+        blocklists because they're site-specific custom elements. Remove takes them out
+        permanently. Remove also frees event listeners and stops animations tied to the removed
+        element, which often cuts CPU burn on idle tabs.
       </p>
       <p><b>Pattern syntax:</b> any valid CSS selector.</p>
       <pre>.modal-overlay
 [data-role="promo"]
 iframe[src*="tracker.example.com"]
-#footer .subscribe-banner</pre>
-      <p><b>When to use:</b> when you want the element completely gone — freeing listeners/timers
-      tied to it, stopping libraries that animate it, or when the site re-adds the element and
-      <code>display: none</code> isn't enough.</p>
+article[data-post-id]:has([is-post-commercial-communication])</pre>
+      <p><b>When to pick Remove vs Hide:</b> Remove for listeners/animations/JS-dependencies to
+      stop. Hide when the site's own JS crashes if its DOM gets mutated (rare but real).</p>
     </details>
 
     <details class="layer">
-      <summary><span class="layer-num">3</span>Hide (CSS) — elements still exist but are invisible</summary>
+      <summary><span class="layer-num">6</span>Hide (CSS) &mdash; element stays in the DOM but doesn't render</summary>
       <p>
-        Selectors in the <code>Hide</code> list are applied as a user stylesheet with
+        Selectors in <code>Hide</code> are applied as a user stylesheet with
         <code>display: none !important</code>. The browser skips layout, paint, compositing, and
-        GPU work for hidden elements. CSS animations and transitions on those elements also stop
-        running (no rendered box = nothing to animate).
+        GPU work for hidden elements; CSS animations on those elements also stop.
       </p>
-      <p>
-        This is the mildest layer. The element still exists in the DOM and its JavaScript can
-        still execute. If the element's scripts poll a timer or make network requests, those keep
-        running. Use <code>Hide</code> when the page will break if the element is physically
-        missing (some sites crash when their own DOM is mutated) but you don't want it taking up
-        screen space or GPU compositor cycles.
+      <p><b>Why it's relevant.</b>
+        The mildest layer. Useful when Remove would break the page (some SPAs crash when their own
+        DOM is mutated from under them), or as a safety net for elements that might exist after
+        you've blocked their network resources at the Block layer.
       </p>
       <p><b>Pattern syntax:</b> any valid CSS selector (same as Remove).</p>
-      <p><b>When to use:</b> when something visual is annoying but removing the element might break
-      the page (rare), or as a safety net for elements that might exist even after you've blocked
-      their network resources.</p>
+      <p><b>When to pick Hide:</b> visual annoyances where Remove risks breaking the page. Also
+      useful as a cross-pass fallback: the Block layer kills the request, Hide cleans up the
+      empty shell the site's JS leaves in the DOM.</p>
     </details>
 
     <details class="layer">
-      <summary>Behavioral suggestions (opt-in)</summary>
+      <summary><span class="layer-num">7</span>Spoof (fingerprint) &mdash; returns bland constants from fingerprint APIs</summary>
       <p>
-        Hush can watch a tab and suggest rules based on what the page does, surfacing the results
-        in the popup for one-click acceptance. Turned off by default because it costs a small amount
-        of per-scan CPU.
+        Hush intercepts specific fingerprinting APIs and returns identical-across-users values
+        instead of real ones. The calling site still gets a response, it just can't identify you
+        by it.
       </p>
-      <p><b>What signals it uses</b> (all observed locally in the current tab, no lists fetched):</p>
-      <ul>
-        <li><b>sendBeacon targets</b> - the <code>navigator.sendBeacon</code> API is purpose-built
-        for telemetry. Any third-party host receiving beacons gets suggested as a block.</li>
-        <li><b>Tracking pixels</b> - third-party <code>&lt;img&gt;</code> responses smaller than 200 bytes
-        are the classic 1x1 tracking-pixel pattern.</li>
-        <li><b>First-party telemetry subdomains</b> - subdomains of the current site whose responses
-        are all tiny (&lt; 1 KB) are almost always internal tracking/widget endpoints that curated
-        lists can't catch (they're company-specific).</li>
-        <li><b>Polling endpoints</b> - the same canonical URL fetched repeatedly in a short window
-        with tiny responses is a heartbeat or telemetry loop.</li>
-        <li><b>Hidden iframes</b> - iframes with <code>display:none</code>, <code>visibility:hidden</code>,
-        1x1 size, or positioned off-screen have no legitimate user-facing reason to render.</li>
-        <li><b>Sticky overlays</b> - fixed-position elements with high z-index covering a significant
-        portion of the viewport are usually nag popups or cookie banners.</li>
-      </ul>
-      <p><b>Why this catches what uBlock Origin Lite / AdGuard / Privacy Badger can't:</b>
-      curated blocklists only know about publicly-documented trackers. Hush looks at what
-      <em>this</em> page is actually doing and flags per-site behaviors the lists have no way
-      to know about (first-party telemetry subdomains, widget iframes, polling endpoints).</p>
-      <p><b>Data egress:</b> none. Hush does not fetch filter lists, does not send observations
-      anywhere, and all analysis runs in the current tab's process. Suggestions are held in memory
-      per-tab and cleared on navigation.</p>
-      <p><b>Manual override:</b> even with the feature off, the popup's <b>Scan this tab now</b>
-      button runs a single scan on demand without enabling continuous scanning.</p>
+      <p><b>Why it's relevant.</b>
+        Browser fingerprinting combines 3-4 signals (GPU model + canvas rendering + installed
+        fonts + audio DSP quirks) to identify 90%+ of browser sessions regardless of cookies,
+        incognito mode, or VPN. Because fingerprinting happens at read time - not a separate
+        request - Block can't stop it, and the page would break if you simply denied the read.
+        Spoof lets the page keep rendering while killing the entropy.
+      </p>
+      <p><b>Fingerprint kinds:</b> return bland constants to kill entropy contribution without
+      breaking the page.</p>
+      <div class="key">
+        <span class="k">webgl-unmasked</span>
+        <span><code>getParameter(UNMASKED_VENDOR_WEBGL)</code> / <code>UNMASKED_RENDERER_WEBGL</code> return <code>"Google Inc."</code> / <code>"ANGLE (Generic)"</code> instead of the real GPU model.</span>
+        <span class="k">canvas</span>
+        <span><code>toDataURL</code> / <code>toBlob</code> return a constant 1x1 PNG; <code>getImageData</code> returns zero bytes. Kills subpixel-rendering fingerprints. Opt-in per site because legit canvas use breaks.</span>
+        <span class="k">audio</span>
+        <span><code>OfflineAudioContext.startRendering</code> resolves to a silent buffer. Kills audio-DSP-divergence fingerprints.</span>
+        <span class="k">font-enum</span>
+        <span><code>measureText</code> returns length-only metrics. Kills installed-font probing via width measurement.</span>
+      </div>
+      <p><b>Kill-switch kinds:</b> for APIs that have no legitimate user-side benefit. When any
+      of these is set in the <code>Global</code> scope, the API is disabled site-wide. Much
+      simpler than authoring per-site Block rules, and defaults-on for new installs (see
+      <code>sites.json</code>) so you get the defense without configuring anything.</p>
+      <div class="key">
+        <span class="k">sendbeacon</span>
+        <span><code>navigator.sendBeacon</code> returns <code>true</code> without firing. The API's literal purpose is page-unload telemetry - there's no user-side beneficiary. Kills session-end analytics, dwell-time reports, and "did-the-user-close-the-tab" beacons. Zero known collateral damage.</span>
+        <span class="k">clipboard-read</span>
+        <span><code>navigator.clipboard.readText</code> rejects with <code>NotAllowedError</code> - the exact DOMException the browser raises when the user declines the permission prompt. Kills coupon-sniffing and paste-in analytics. Legit page-script use is near-zero (password managers and clipboard tools run as extensions).</span>
+        <span class="k">bluetooth</span>
+        <span><code>Bluetooth.requestDevice</code> rejects with <code>NotFoundError</code>. Remove from your config if you actively use WebBluetooth (maker-space dashboards, physical-web integrations).</span>
+        <span class="k">usb</span>
+        <span><code>USB.requestDevice</code> rejects. Remove if you use WebUSB.</span>
+        <span class="k">hid</span>
+        <span><code>HID.requestDevice</code> rejects. Remove if you use WebHID (gamepads, specialized peripherals).</span>
+        <span class="k">serial</span>
+        <span><code>Serial.requestPort</code> rejects. Remove if you use WebSerial (Arduino IDE web, flashing tools).</span>
+      </div>
+      <p><b>Why kill-switches are Global-scope Spoof rules:</b> the existing Spoof primitive
+      already matches what we want - intercept the API, return a spec-compliant "not happening"
+      value, let the page handle the denial. Global scope applies it everywhere. New kinds are a
+      one-line addition; no new schema, no new UI, no migration.</p>
+      <p><b>When to pick Spoof vs Block:</b> Block when the fingerprint script has a distinct URL
+      you can target (upstream-most). Spoof when the read happens in bundled first-party code or
+      in an API call that has no URL to block against (sendBeacon, clipboard, device probes).</p>
     </details>
 
+    <h3>Scopes: site-specific vs Global</h3>
     <details class="layer">
-      <summary>Layer interaction and overlap</summary>
+      <summary>Where rules evaluate</summary>
+      <p>
+        Every rule has a <b>scope</b>. A site-scoped rule evaluates only on tabs whose hostname
+        matches the scope key (exact or suffix - <code>reddit.com</code> also covers
+        <code>www.reddit.com</code>, <code>old.reddit.com</code>, <code>sh.reddit.com</code>). The
+        reserved <code>Global</code> scope (<code>__global__</code> under the hood) evaluates on
+        every tab.
+      </p>
+      <p><b>Why it's relevant.</b>
+        Global is for rules that should apply everywhere: known-bad ad networks, session-replay
+        vendors you never want firing, fingerprint scripts from anywhere. Site-specific is for
+        surgical per-site cleanup: Reddit's promoted posts, GitHub's telemetry collector, Amazon's
+        ad iframes. Without Global you'd duplicate the same rule across every site entry; without
+        site-specific you'd over-block.
+      </p>
+      <p><b>Pattern:</b> put broad vendor bans in Global, put page-structure cleanup in the site
+      scope. The two layers combine: when a rule exists in both, the site scope wins dedup.</p>
+    </details>
+
+    <h3>The behavioral detector (opt-in)</h3>
+    <details class="layer">
+      <summary>What it watches, what it suggests, why the curated lists can't do this</summary>
+      <p>
+        Off by default because it costs some per-scan CPU. Once on, Hush observes what the
+        current page actually does and surfaces rule suggestions in the popup. Every suggestion
+        carries raw evidence (URLs, sizes, stack traces, outerHTML snippets) so you verify before
+        accepting. Every scan runs locally; no lists fetched, no observations ever leave the
+        current tab.
+      </p>
+
+      <p><b>Why this exists.</b>
+        Public blocklists (EasyList, EasyPrivacy, uBO, AdGuard, Privacy Badger) only know about
+        publicly-documented trackers. First-party telemetry subdomains, site-specific custom
+        elements, session-replay listener patterns, and fingerprint-API reads don't generalize
+        across millions of users, so no curated list captures them. An observe-and-suggest
+        engine closes exactly that gap.
+      </p>
+
+      <p><b>Network-layer signals</b> (from <code>PerformanceObserver</code>):</p>
       <ul>
-        <li><b>Hide and Remove the same selector:</b> Remove runs first (on every mutation), so
-        matching elements never stay long enough for Hide to count them. The popup will show such
-        selectors as <code>- (removed)</code> in the Hidden section — that's not a bug, it's the
-        honest story.</li>
-        <li><b>Block plus Hide:</b> the request is killed at the network layer; if the site's JS
-        still builds a DOM element (an iframe with a now-failed <code>src</code>, for example),
-        Hide suppresses its rendering.</li>
-        <li><b>Domain matching for Hide/Remove selectors:</b> a site entry for
-        <code>example.com</code> also applies to <code>www.example.com</code>,
-        <code>m.example.com</code>, and any other subdomain. Selectors execute only in frames
-        whose hostname matches the site key (or one of its subdomains).</li>
-        <li><b>Block rules are global URL patterns:</b> a pattern like
-        <code>||ads.example.com</code> under any site entry blocks that host wherever it's
-        requested &mdash; in the top frame, in embedded iframes, from service workers, anywhere.
-        Site-keyed authoring is a convention for organizing your rules, not a runtime scope.</li>
-        <li><b>Iframe-originated traffic is attributed to the tab:</b> when a cross-origin iframe
-        (e.g., an embedded redgifs video on Reddit) initiates a request, Hush reports it as part
-        of the Reddit tab's activity. Your Reddit block rules cover iframe traffic automatically;
-        you don't need per-iframe-domain rules.</li>
+        <li><b>sendBeacon targets</b> (confidence 95) - <code>navigator.sendBeacon</code> is
+        purpose-built for fire-and-forget telemetry that survives page unload. Any third-party
+        host receiving beacons is almost always a tracker.</li>
+        <li><b>Tracking pixels</b> (85) - third-party <code>&lt;img&gt;</code> responses under
+        200 bytes. The classic 1x1 pixel-tracker pattern.</li>
+        <li><b>First-party telemetry subdomains</b> (70) - subdomains of the current site whose
+        responses are all tiny (median under 1 KB). GitHub's <code>collector.github.com</code>,
+        Amazon's <code>unagi.amazon.com</code>, Reddit's <code>w3-reporting.reddit.com</code>
+        are textbook examples. No curated list blocks these by policy.</li>
+        <li><b>Polling endpoints</b> (75) - the same canonical URL fetched 4+ times in seconds,
+        with tiny responses. Heartbeats, long-poll loops, telemetry rollups.</li>
+        <li><b>Hidden iframes</b> (80, with default allowlist for captcha/OAuth/payment) -
+        iframes rendered with <code>display:none</code>, <code>visibility:hidden</code>, 1x1
+        size, or offscreen. Legitimate uses are captcha / OAuth / payment, all allowlisted by
+        default; the rest are ad containers or tracking pixels.</li>
+        <li><b>Sticky overlays</b> (55) - fixed-position elements with z-index >= 100 covering
+        >= 25% of viewport. Typically nag popups, cookie banners, subscribe prompts.</li>
       </ul>
+
+      <p><b>Fingerprint signals</b> (from main-world API hooks):</p>
+      <ul>
+        <li><b>Canvas fingerprinting</b> (90) - 3+ calls to <code>toDataURL</code> /
+        <code>toBlob</code> / <code>getImageData</code> from one script origin. Canvas rendering
+        is the most-used browser-fingerprint signal; a few reads per page is diagnostic.</li>
+        <li><b>WebGL fingerprinting</b> (95 for <code>UNMASKED_*</code> reads, 75 for general
+        <code>getParameter</code> flurry) - reading the GPU vendor/model strings is
+        fingerprint-specific; no legitimate use exists for identifying the exact GPU.</li>
+        <li><b>Audio fingerprinting</b> (90) - any <code>OfflineAudioContext</code> construction.
+        The context exists almost exclusively for DSP-divergence fingerprinting.</li>
+        <li><b>Font enumeration</b> (85) - <code>measureText</code> across 20+ distinct font
+        families in one session. Installed-font probing via width measurement.</li>
+        <li><b>Navigator / screen accessor density (Tier 3)</b> (80) - 10+ distinct reads across
+        <code>navigator.userAgent</code>, <code>platform</code>, <code>languages</code>,
+        <code>hardwareConcurrency</code>, <code>deviceMemory</code>, <code>maxTouchPoints</code>,
+        etc. within 60s. Layout-dependent properties (innerWidth, devicePixelRatio) deliberately
+        excluded so the signal stays fingerprint-specific.</li>
+      </ul>
+
+      <p><b>Session-replay signals:</b></p>
+      <ul>
+        <li><b>Vendor globals</b> (95) - Hush polls for
+        <code>window._hjSettings</code> (Hotjar), <code>window.FS</code> (FullStory),
+        <code>window.clarity</code> (Microsoft Clarity), <code>window.LogRocket</code>,
+        <code>window.smartlook</code>, <code>window.mouseflow</code>, <code>window.__posthog</code>.
+        Presence of any is diagnostic.</li>
+        <li><b>Listener density</b> (80) - 12+ mouse/keyboard/scroll listeners attached to
+        document/window/body from one script origin within 60s. Suggests Neuter rather than URL
+        block: it's the listener registration itself that's the fingerprint, not the vendor
+        domain.</li>
+      </ul>
+
+      <p><b>Attention / lifecycle tracking:</b></p>
+      <ul>
+        <li><b>Visibility / focus / pagehide density</b> (75) - 4+ listeners across
+        <code>visibilitychange</code>, <code>focus</code>, <code>blur</code>, <code>pagehide</code>,
+        <code>pageshow</code>, <code>beforeunload</code> from one origin. Catches engagement
+        analytics and session-replay dwell-time hooks. Brave Shields doesn't specifically target
+        this; Hush does. Suggests Neuter.</li>
+      </ul>
+
+      <p><b>API-probe signals:</b></p>
+      <ul>
+        <li><b>Clipboard read</b> (95) - any call to
+        <code>navigator.clipboard.readText()</code> from a page script. Chrome gesture-gates
+        the API, but legitimate page-script use is near-zero (password managers run as
+        extensions). Catches coupon sniffing, competitor-URL pasting, paste-in analytics.</li>
+        <li><b>Hardware device probes</b> (90) - calls to
+        <code>Bluetooth.requestDevice</code>, <code>USB.requestDevice</code>,
+        <code>HID.requestDevice</code>, <code>Serial.requestPort</code>. Legitimate uses are
+        maker-space / industrial / dev-tool contexts. Random web pages calling these are
+        fingerprint probes - the permission prompt itself is an entropy signal. Brave doesn't
+        hook any of these.</li>
+      </ul>
+
+      <p><b>Performance-abuse signals:</b></p>
+      <ul>
+        <li><b>Invisible animation loop</b> (70) - 20+ canvas draw ops over >=3s against a
+        canvas that's >=80% invisible (display:none, offscreen, sub-2px). Catches Lottie-style
+        animations running inside collapsed panels, hidden widgets, or auto-hidden ads still
+        burning CPU.</li>
+      </ul>
+
+      <p><b>How suggestions appear:</b> the toolbar icon shows a yellow <code>!</code> badge on
+      tabs with pending suggestions. Click to review. Each row has three buttons:</p>
+      <ul>
+        <li><b>+ Add</b> - writes the rule. A scope picker asks: site-specific or global?</li>
+        <li><b>Dismiss</b> - suppresses this suggestion for this tab session only. Reloading
+        brings it back.</li>
+        <li><b>Allow</b> - permanent across every site, saved to the suggestion allowlist.
+        Revocable from the options allowlist editor below.</li>
+      </ul>
+
+      <p><b>Manual override:</b> even with the feature off, the popup's <b>Scan this tab now</b>
+      button runs a single scan on demand.</p>
+    </details>
+
+    <h3>The firewall log (popup)</h3>
+    <details class="layer">
+      <summary>Every rule hit, aggregated and filterable</summary>
+      <p>
+        Every time a rule fires, Hush records one event with:
+        timestamp, action, scope, match, and action-specific evidence (blocked URL + resource type
+        for Block/Allow, element description for Remove, kind tag for Spoof). Events accumulate in
+        a global ring buffer capped at 10000, persisted to <code>chrome.storage.session</code>
+        (survives popup close and tab reload; clears on browser restart).
+      </p>
+      <p><b>Why it's relevant.</b>
+        "Did my rule actually fire?" is the number-one question when tuning. The firewall log
+        answers it with receipts. Rules that never fire are dead code; rules that fire 10k times
+        are probably too broad. The popup aggregates by rule ID and shows hit count, last-hit
+        time, and recent evidence - you can spot broken or shadowed rules at a glance.
+      </p>
+      <p><b>Health indicators</b> shown per row:</p>
+      <ul>
+        <li><b>shadowed by allow</b> - an Allow rule covers this Block; it will never fire.</li>
+        <li><b>no DOM match on this tab</b> - a Remove/Hide selector that matched nothing since
+        the last navigation. Could be a typo, could be legitimate (the element didn't appear on
+        this page).</li>
+        <li><b>invalid selector</b> - the CSS parser rejected the selector. Usually a missing
+        quote or unescaped metachar.</li>
+      </ul>
+      <p><b>Filters:</b> tab (this tab / all tabs), action, tags, substring search over match.</p>
+    </details>
+
+    <h3>Rule simulate (test-match)</h3>
+    <details class="layer">
+      <summary>Check what rules fire for a given URL before saving</summary>
+      <p>
+        The options page has a Simulate panel. Paste a URL and optionally a site hostname; Hush
+        walks your config and returns every matching rule across the Global scope and the site
+        scope, with action / value / priority. The DNR winner is flagged with a check.
+      </p>
+      <p><b>Why it's relevant.</b>
+        You don't want to find out a rule is broken by clicking around the actual site. Simulate
+        is a dry run against your current config: if a pattern should match and doesn't, you see
+        that before saving. Shares code with the real evaluator so simulation can't diverge from
+        production behavior.
+      </p>
+    </details>
+
+    <h3>Rule profiles (import/export)</h3>
+    <details class="layer">
+      <summary>Ship entire rule sets between machines or between users</summary>
+      <p>
+        The options page has Import Profile and Export as Profile buttons. Export wraps the
+        current config with a user-supplied name + description inside a <code>hushProfile</code>
+        header and triggers a JSON download. Import parses profile JSON, previews the merge
+        (added vs skipped rule counts), then unions the profile's rules into live config.
+        Existing rule metadata (disabled, tags, comment) is preserved; new rules append to
+        their bucket.
+      </p>
+      <p><b>Why it's relevant.</b>
+        Your carefully-tuned Reddit / GitHub / Amazon rules are portable. Share a profile with
+        someone else and they get your rule set without typing a single selector. Curated
+        starter profiles ship alongside Hush for common scenarios (news-site baseline,
+        social-media declutter, Brave-stack supplement).
+      </p>
+    </details>
+
+    <h3>Allowlists</h3>
+    <details class="layer">
+      <summary>What the detector should skip (NOT what rules are exempt)</summary>
+      <p>
+        Three detector-scoped allowlists, all user-editable in the Advanced section below:
+      </p>
+      <ul>
+        <li><b>iframes</b> - URL substrings. A hidden iframe whose src matches any entry is
+        skipped by the hidden-iframe detector. Defaults cover captcha, OAuth, payment widgets.</li>
+        <li><b>overlays</b> - CSS selectors. A sticky overlay matching any selector is skipped
+        by the sticky-overlay detector. Defaults cover React Portals and framework modal
+        containers.</li>
+        <li><b>suggestions</b> - full suggestion keys. Populated by the popup's Allow button.
+        Once in this list, the suggestion never resurfaces on any site.</li>
+      </ul>
+      <p><b>Why it's relevant.</b>
+        Allowlists suppress <i>suggestions</i>, not rules. If you want a stored rule to stop
+        firing, delete the rule. If you want a specific suggestion to stop appearing, Allow it.
+        The two concerns are separate, so the primitives are separate.
+      </p>
+    </details>
+
+    <h3>Cross-layer interaction</h3>
+    <details class="layer">
+      <summary>How the seven actions combine when they match the same thing</summary>
+      <ul>
+        <li><b>Allow over Block:</b> DNR's priority resolution gives Allow rules higher
+        priority than Block. For DOM layers, Allow selectors exclude nodes from Remove/Hide
+        passes.</li>
+        <li><b>Remove over Hide:</b> Remove runs first on every MutationObserver pass, so Hide
+        sees an empty selector set. The popup shows such selectors as <code>- (removed)</code>
+        in the Hide section; that's honest reporting, not a bug.</li>
+        <li><b>Block plus Hide:</b> Block kills the request; if the site's JS still builds a DOM
+        element with a failed <code>src</code>, Hide suppresses the empty shell.</li>
+        <li><b>Neuter over Silence:</b> Neuter blocks the listener from registering; Silence
+        intercepts the exfil call after registration. Use Neuter when you can match by script
+        origin; Silence as the fallback.</li>
+        <li><b>Block rules are global URL patterns.</b> A rule under any site scope blocks that
+        URL everywhere - including in embedded iframes on other sites. Site-keyed authoring is
+        organizational, not a runtime scope. For a URL blocked on one site only, narrow the
+        pattern itself.</li>
+        <li><b>Iframe traffic is attributed to the tab.</b> A request from an embedded ad iframe
+        on Reddit counts as Reddit-tab activity. Your Reddit rules cover it automatically.</li>
+      </ul>
+      <p><b>Runtime order for any given element:</b></p>
+      <ol>
+        <li>Block / Allow decide whether the request happens at all.</li>
+        <li>Neuter decides whether capture listeners ever register.</li>
+        <li>Silence intercepts any capture call that still made it out.</li>
+        <li>Remove decides whether the element stays in the DOM.</li>
+        <li>Hide decides whether what remains actually renders.</li>
+        <li>Spoof returns bland values from any fingerprint reads.</li>
+      </ol>
+    </details>
+
+    <h3>Data egress</h3>
+    <details class="layer">
+      <summary>Where your config and observations live</summary>
+      <p>
+        <b>Nothing leaves the extension.</b> Hush does not fetch filter lists, does not send
+        observations anywhere, does not phone home. All analysis runs locally in the current tab
+        or the service worker.
+      </p>
+      <p>
+        Your config (<code>chrome.storage.local</code>) contains every rule you authored; it
+        syncs across Chrome profiles only if you explicitly enable sync. The firewall log lives
+        in <code>chrome.storage.session</code> and clears on browser restart. Behavioral
+        observations are per-tab and wiped on navigation.
+      </p>
     </details>
   </section>
 

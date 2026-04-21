@@ -48,6 +48,10 @@
     {
       "resources": ["dist/pkg/hush.js", "dist/pkg/hush_bg.wasm"],
       "matches": ["<all_urls>"]
+    },
+    {
+      "resources": ["profiles/*.json"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

@@ -1,0 +1,153 @@
+{
+  "hushProfile": {
+    "name": "News-site baseline",
+    "description": "Starting point for major news sites. Blocks first-party telemetry hosts for NYT, WaPo, CNN, BBC, The Guardian, Reuters; hides the common paywall-overlay, newsletter-popup, and cookie-consent patterns that appear across hundreds of news sites. Uses Global-scope selector hides where the class conventions are consistent industry-wide, per-site blocks where the telemetry host is specific. Expect to tune the paywall selectors per your subscriptions.",
+    "version": 1
+  },
+  "config": {
+    "__global__": {
+      "hide": [
+        {
+          "value": "[class*=\"newsletter-signup\"]",
+          "tags": ["newsletter"],
+          "comment": "Inline newsletter-signup widgets - near-universal class convention across news sites."
+        },
+        {
+          "value": "[class*=\"NewsletterSignup\"]",
+          "tags": ["newsletter"],
+          "comment": "PascalCase variant (styled-components convention)."
+        },
+        {
+          "value": "[class*=\"cookie-banner\"]",
+          "tags": ["cookie-consent"],
+          "comment": "GDPR/CCPA cookie consent banners. Hide rather than Remove - some sites' JS crashes if the banner element is missing from the DOM."
+        },
+        {
+          "value": "[class*=\"CookieBanner\"]",
+          "tags": ["cookie-consent"],
+          "comment": "PascalCase variant."
+        },
+        {
+          "value": "[class*=\"gdpr-notice\"]",
+          "tags": ["cookie-consent"],
+          "comment": "GDPR-specific variant."
+        },
+        {
+          "value": "[id*=\"onetrust-banner\"]",
+          "tags": ["cookie-consent"],
+          "comment": "OneTrust is the most common cookie-consent vendor. ID-prefixed so the hide works regardless of theme class."
+        },
+        {
+          "value": "[class*=\"subscribe-banner\"]",
+          "tags": ["paywall"],
+          "comment": "Subscribe-banner sticky bar. Common paywall-adjacent pattern."
+        },
+        {
+          "value": "[class*=\"subscription-banner\"]",
+          "tags": ["paywall"],
+          "comment": "Dash vs underscore variant."
+        }
+      ],
+      "remove": [
+        {
+          "value": "[id*=\"newsletter-modal\"]",
+          "tags": ["newsletter"],
+          "comment": "Full-screen newsletter modals that hijack the tab. Remove rather than Hide so their click-capture overlay dies too."
+        },
+        {
+          "value": "[class*=\"newsletter-modal\"]",
+          "tags": ["newsletter"],
+          "comment": "Class-based variant of the same pattern."
+        }
+      ]
+    },
+    "nytimes.com": {
+      "block": [
+        {
+          "value": "||cdp.cloud.nytimes.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "NYT's Customer Data Platform pipeline. First-party event collection - not on public lists."
+        },
+        {
+          "value": "||pagestats.nytimes.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "Page-performance and interaction telemetry."
+        },
+        {
+          "value": "||purr.nytimes.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "NYT's consent-management telemetry endpoint."
+        }
+      ]
+    },
+    "washingtonpost.com": {
+      "block": [
+        {
+          "value": "||telemetry.washingtonpost.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "WaPo's first-party telemetry endpoint."
+        },
+        {
+          "value": "||subs.washingtonpost.com",
+          "tags": ["first-party-telemetry", "paywall"],
+          "comment": "Subscription-system telemetry. Blocking this does not affect actual authentication - that goes through accounts.washingtonpost.com."
+        }
+      ]
+    },
+    "cnn.com": {
+      "block": [
+        {
+          "value": "||ref.cnn.io",
+          "tags": ["first-party-telemetry"],
+          "comment": "CNN's referrer-tracking pipeline."
+        },
+        {
+          "value": "||cdp.cnn.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "CNN's Customer Data Platform analog."
+        }
+      ]
+    },
+    "bbc.co.uk": {
+      "block": [
+        {
+          "value": "||events.bbc.co.uk",
+          "tags": ["first-party-telemetry"],
+          "comment": "BBC first-party event telemetry."
+        },
+        {
+          "value": "||mybbc-analytics.files.bbci.co.uk",
+          "tags": ["first-party-telemetry"],
+          "comment": "BBC analytics bundle served from the CDN; neuters the collection-side before it fires."
+        }
+      ]
+    },
+    "bbc.com": {
+      "block": [
+        {
+          "value": "||events.bbc.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "International BBC telemetry host (matches .co.uk pattern)."
+        }
+      ]
+    },
+    "theguardian.com": {
+      "block": [
+        {
+          "value": "||ophan.theguardian.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "The Guardian's in-house real-time editorial analytics. Ophan is a named product; its traffic is pure telemetry, no user-facing feature depends on it."
+        }
+      ]
+    },
+    "reuters.com": {
+      "block": [
+        {
+          "value": "||pix.reuters.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "Reuters tracking-pixel endpoint."
+        }
+      ]
+    }
+  }
+}

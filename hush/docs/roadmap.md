@@ -202,11 +202,6 @@ allow relocation without separately editing scope + action.
 Profile export currently dumps the whole config. Let the user
 pick a subset before export — by scope, by tag, or by action.
 
-### Manifest / Cargo version drift cleanup
-
-`manifest.json` says 0.10.0; `Cargo.toml` says 0.12.0. Bump the
-manifest to match Cargo and cut a release. Mechanical.
-
 ## Out of scope
 
 Not planned. Pulled back in via new entries if they become

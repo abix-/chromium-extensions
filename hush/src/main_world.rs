@@ -38,8 +38,8 @@
 use crate::types::SignalPayload;
 use js_sys::{Array, Function, Object, Reflect};
 use std::cell::RefCell;
-use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::prelude::*;
 use web_sys::{CustomEvent, CustomEventInit, Document};
 
 // Long-lived storage for the Rust closures we hand to JS. They must
@@ -57,9 +57,17 @@ thread_local! {
 /// arguments. One table so adding a new hook is a one-line change.
 /// Each tuple: (global constructor path, method name, kind tag).
 const HOOKS: &[(&str, &str, &str)] = &[
-    ("window.HTMLCanvasElement", "toDataURL", "canvas-fp:toDataURL"),
+    (
+        "window.HTMLCanvasElement",
+        "toDataURL",
+        "canvas-fp:toDataURL",
+    ),
     ("window.HTMLCanvasElement", "toBlob", "canvas-fp:toBlob"),
-    ("window.CanvasRenderingContext2D", "getImageData", "canvas-fp:getImageData"),
+    (
+        "window.CanvasRenderingContext2D",
+        "getImageData",
+        "canvas-fp:getImageData",
+    ),
     ("window.CanvasRenderingContext2D", "measureText", "font-fp"),
     ("window.WebGLRenderingContext", "getParameter", "webgl-fp"),
     ("window.WebGL2RenderingContext", "getParameter", "webgl-fp"),
@@ -115,18 +123,19 @@ fn install_one_hook(
     // Rust dispatch function. Called by the JS-side wrapper on every
     // invocation with the captured `this` and `arguments`. We build a
     // payload, validate via SignalPayload, dispatch a CustomEvent.
-    let closure = Closure::<dyn Fn(JsValue, JsValue)>::new(move |this_val: JsValue, args: JsValue| {
-        let detail = match build_payload(kind_tag, &this_val, &args) {
-            Ok(v) => v,
-            Err(e) => {
-                log_error(&format!("build_payload({kind_tag}): {}", js_err_str(&e)));
-                return;
+    let closure =
+        Closure::<dyn Fn(JsValue, JsValue)>::new(move |this_val: JsValue, args: JsValue| {
+            let detail = match build_payload(kind_tag, &this_val, &args) {
+                Ok(v) => v,
+                Err(e) => {
+                    log_error(&format!("build_payload({kind_tag}): {}", js_err_str(&e)));
+                    return;
+                }
+            };
+            if let Err(e) = validate_and_dispatch(detail) {
+                log_error(&format!("dispatch({kind_tag}): {}", js_err_str(&e)));
             }
-        };
-        if let Err(e) = validate_and_dispatch(detail) {
-            log_error(&format!("dispatch({kind_tag}): {}", js_err_str(&e)));
-        }
-    });
+        });
 
     // Call the JS factory: factory(rustDispatch, origFn, kindTag) => wrapperFn.
     // The wrapperFn is a real JS function that captures `this` and forwards
@@ -183,12 +192,16 @@ fn build_payload(kind_tag: &str, _this: &JsValue, call: &JsValue) -> Result<JsVa
         }
         "font-fp" => {
             // measureText(text) - font comes from `this.font` via the factory
-            let font = Reflect::get(call, &JsValue::from_str("font"))
-                .unwrap_or(JsValue::from_str(""));
+            let font =
+                Reflect::get(call, &JsValue::from_str("font")).unwrap_or(JsValue::from_str(""));
             let text = args_arr.get(0).as_string().unwrap_or_default();
             set(&obj, "kind", &JsValue::from_str("font-fp"))?;
             set(&obj, "font", &font)?;
-            set(&obj, "text", &JsValue::from_str(&text.chars().take(20).collect::<String>()))?;
+            set(
+                &obj,
+                "text",
+                &JsValue::from_str(&text.chars().take(20).collect::<String>()),
+            )?;
             set(&obj, "stack", &stack)?;
         }
         "webgl-fp" => {

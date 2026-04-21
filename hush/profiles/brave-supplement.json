@@ -1,0 +1,190 @@
+{
+  "hushProfile": {
+    "name": "Brave supplement",
+    "description": "Narrow companion for Brave Shields users. Covers the gaps Shields doesn't close: first-party telemetry subdomains on major sites, session-replay vendor blocks at the script-origin layer (catches bundled copies Shields' URL lists miss), and site-specific custom-element cleanup (Reddit promoted posts, Amazon ad iframes, GitHub telemetry collector). Does NOT duplicate Shields' work (no generic EasyList patterns, no fingerprint spoofs - Shields farbles those better). Load on top of Shields with zero expected conflicts.",
+    "version": 1
+  },
+  "config": {
+    "__global__": {
+      "spoof": [
+        {
+          "value": "sendbeacon",
+          "tags": ["kill-switch"],
+          "comment": "navigator.sendBeacon returns true without firing. The API's literal purpose is page-unload telemetry; no user-side benefit exists. Killed site-wide."
+        },
+        {
+          "value": "clipboard-read",
+          "tags": ["kill-switch"],
+          "comment": "navigator.clipboard.readText rejects with NotAllowedError (same DOMException the browser raises when the user denies the permission prompt). Kills coupon-sniffing and paste-in analytics."
+        },
+        {
+          "value": "bluetooth",
+          "tags": ["kill-switch"],
+          "comment": "Bluetooth.requestDevice rejects with NotFoundError. Delete this line if you genuinely use a site's Bluetooth integration (maker-space, physical-web dashboards)."
+        },
+        {
+          "value": "usb",
+          "tags": ["kill-switch"],
+          "comment": "USB.requestDevice rejects. Delete this line if you use WebUSB for devices (very rare on general browsing)."
+        },
+        {
+          "value": "hid",
+          "tags": ["kill-switch"],
+          "comment": "HID.requestDevice rejects. Delete this line if you use WebHID (gamepads via WebHID, specialized peripherals)."
+        },
+        {
+          "value": "serial",
+          "tags": ["kill-switch"],
+          "comment": "Serial.requestPort rejects. Delete this line if you use WebSerial for hardware (Arduino IDE web, etc)."
+        }
+      ],
+      "neuter": [
+        {
+          "value": "||hotjar.com",
+          "tags": ["session-replay"],
+          "comment": "Hotjar: deny interaction-listener registration at document_start. Catches bundled copies that don't load from hotjar.com but still call addEventListener from Hotjar-origin code."
+        },
+        {
+          "value": "||static.hotjar.com",
+          "tags": ["session-replay"],
+          "comment": "Hotjar static CDN - alternate origin for the same library."
+        },
+        {
+          "value": "||fullstory.com",
+          "tags": ["session-replay"],
+          "comment": "FullStory: same shape as Hotjar. Session-replay listener density is the signal."
+        },
+        {
+          "value": "||edge.fullstory.com",
+          "tags": ["session-replay"],
+          "comment": "FullStory edge hosts."
+        },
+        {
+          "value": "||clarity.ms",
+          "tags": ["session-replay"],
+          "comment": "Microsoft Clarity - free session-replay bundled in enterprise analytics packages."
+        },
+        {
+          "value": "||logrocket.com",
+          "tags": ["session-replay"],
+          "comment": "LogRocket."
+        },
+        {
+          "value": "||cdn.lr-in-prod.com",
+          "tags": ["session-replay"],
+          "comment": "LogRocket CDN."
+        },
+        {
+          "value": "||smartlook.com",
+          "tags": ["session-replay"],
+          "comment": "Smartlook."
+        },
+        {
+          "value": "||mouseflow.com",
+          "tags": ["session-replay"],
+          "comment": "Mouseflow."
+        },
+        {
+          "value": "||posthog.com",
+          "tags": ["analytics", "session-replay"],
+          "comment": "PostHog has an opt-in session-recording feature; if the site enabled it, neuter stops the capture regardless."
+        }
+      ],
+      "silence": [
+        {
+          "value": "||posthog.com",
+          "tags": ["analytics"],
+          "comment": "PostHog exfil fallback: if Neuter misses the listener (inline or non-prototype capture), Silence kills the outbound fetch/XHR/beacon from PostHog-origin code."
+        }
+      ]
+    },
+    "reddit.com": {
+      "block": [
+        {
+          "value": "||w3-reporting.reddit.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "Reddit's first-party event-telemetry pipeline. Receives sendBeacon events for impressions, dwell time, feed-position feedback. Not on any public blocklist - first-party subdomains aren't. Blocking it has no user-visible impact: all user-facing Reddit features use oauth.reddit.com / gql.reddit.com / www.reddit.com/api/*."
+        }
+      ],
+      "remove": [
+        {
+          "value": "games-section-badge-controller",
+          "tags": ["site-specific", "promoted"],
+          "comment": "Reddit-authored custom element for games promotion in the feed. No public cosmetic-filter list targets custom elements this narrow."
+        },
+        {
+          "value": "article[data-post-id]:has([is-post-commercial-communication])",
+          "tags": ["site-specific", "promoted"],
+          "comment": "Brand Affiliate / promoted posts. The :has() selector targets the post only when it contains the is-post-commercial-communication flag - safer than class-matching Reddit's utility classes."
+        },
+        {
+          "value": "faceplate-partial[name^=\"RelatedCommunityRecommendations\"]",
+          "tags": ["site-specific", "algorithmic"],
+          "comment": "Reddit's algorithmic community recommendations inserted into the feed. These aren't ads per se but they're anti-user algorithmic insertions; remove on principle."
+        }
+      ]
+    },
+    "amazon.com": {
+      "block": [
+        {
+          "value": "||unagi.amazon.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "Amazon's first-party behavior-telemetry pipeline. Not on public lists."
+        },
+        {
+          "value": "||unagi-na.amazon.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "North America shard of the same pipeline."
+        }
+      ],
+      "remove": [
+        {
+          "value": "iframe[id^=\"ape_\"]",
+          "tags": ["site-specific", "ad"],
+          "comment": "Amazon's homepage ad iframes use IDs prefixed with ape_ (a-p-e = Amazon Programmatic Exchange). Verified via behavioral-detector hidden-iframe suggestion."
+        },
+        {
+          "value": "iframe[src*=\"s.amazon-adsystem.com\"]",
+          "tags": ["site-specific", "ad"],
+          "comment": "Programmatic ad iframes loaded from Amazon's ad-exchange CDN. Distinct from the ape_ iframes; both appear as hidden-iframe suggestions."
+        }
+      ]
+    },
+    "github.com": {
+      "block": [
+        {
+          "value": "||collector.github.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "GitHub's first-party sendBeacon telemetry collector. ~12 beacons per minute of normal browsing. User-facing features run on api.github.com / *.github.io / *.githubusercontent.com; collector is strictly telemetry."
+        }
+      ]
+    },
+    "twitter.com": {
+      "block": [
+        {
+          "value": "||analytics.twitter.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "First-party analytics subdomain. Not in Brave's URL stripping."
+        }
+      ]
+    },
+    "x.com": {
+      "block": [
+        {
+          "value": "||analytics.twitter.com",
+          "tags": ["first-party-telemetry"],
+          "comment": "Twitter's analytics pipeline still lives on the old analytics.twitter.com host even when served from x.com."
+        }
+      ]
+    },
+    "linkedin.com": {
+      "block": [
+        {
+          "value": "||px.ads.linkedin.com",
+          "tags": ["first-party-telemetry", "ad"],
+          "comment": "LinkedIn's first-party ad pixel endpoint. Loads from linkedin.com so no cross-site filter list blocks it."
+        }
+      ]
+    }
+  }
+}

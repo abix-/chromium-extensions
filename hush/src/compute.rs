@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use crate::types::{Allowlist, BehaviorState, Config, SiteConfig, Suggestion};
 
-use crate::detectors::{DetectCtx, DETECTORS};
+use crate::detectors::{DETECTORS, DetectCtx};
 
 /// Run every detector against `state` + `config`, applying dismissals
 /// and the allowlist. This is the direct Rust port of the old JS
@@ -46,8 +46,7 @@ pub fn compute_suggestions(
     // the user wants the detector to keep surfacing suggestions for
     // that match so the "what gets caught if I turn this back on?"
     // workflow stays live.
-    let existing_block: Arc<[String]> =
-        Arc::from(normalize_block_patterns(&merged.block));
+    let existing_block: Arc<[String]> = Arc::from(normalize_block_patterns(&merged.block));
     let existing_remove: Arc<[String]> = Arc::from(
         merged
             .remove
@@ -134,11 +133,7 @@ fn apply_filters_and_sort(
     // Higher confidence first, then higher count. sort_unstable is safe
     // here because Suggestion has no semantic "equal" ordering beyond
     // confidence+count - any ordering among ties is acceptable.
-    out.sort_unstable_by(|a, b| {
-        b.confidence
-            .cmp(&a.confidence)
-            .then(b.count.cmp(&a.count))
-    });
+    out.sort_unstable_by(|a, b| b.confidence.cmp(&a.confidence).then(b.count.cmp(&a.count)));
     out
 }
 
@@ -318,10 +313,7 @@ mod tests {
             },
         );
         let out = compute_suggestions(&s, &config, &Allowlist::default());
-        assert!(
-            out.is_empty(),
-            "global-scope block rule dedups suggestions"
-        );
+        assert!(out.is_empty(), "global-scope block rule dedups suggestions");
     }
 
     #[test]
@@ -409,7 +401,10 @@ mod tests {
             },
         );
         let out = compute_suggestions(&s, &config, &Allowlist::default());
-        assert!(out.is_empty(), "m.site.test tab should match site.test config");
+        assert!(
+            out.is_empty(),
+            "m.site.test tab should match site.test config"
+        );
     }
 
     #[test]

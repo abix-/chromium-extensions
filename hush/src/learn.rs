@@ -51,9 +51,7 @@ impl LearnKind {
             "listener-density" | "replay-listener" | "replayListener" => Self::ReplayListener,
             "attention-tracking" | "attentionTracking" => Self::AttentionTracking,
             "clipboard-read" | "clipboardRead" => Self::ClipboardRead,
-            "device-api-probe" | "deviceApiProbe" | "new-api-probe" => {
-                Self::DeviceApiProbe
-            }
+            "device-api-probe" | "deviceApiProbe" | "new-api-probe" => Self::DeviceApiProbe,
             "navigator-fp" | "navigatorFp" | "nav-fp" => Self::NavigatorFp,
             "raf-waste" | "rafWaste" => Self::RafWaste,
             _ => return None,

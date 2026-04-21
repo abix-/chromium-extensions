@@ -21,7 +21,7 @@
 //! tests; the options-page UI imports through the wasm-bindgen shim
 //! in `lib.rs`.
 
-use crate::types::{rule_id, Config, RuleEntry, GLOBAL_SCOPE_KEY};
+use crate::types::{Config, GLOBAL_SCOPE_KEY, RuleEntry, rule_id};
 use serde::Serialize;
 
 /// One rule that matched the simulator input. The `priority` field
@@ -244,10 +244,7 @@ pub fn url_filter_matches(pattern: &str, url: &str) -> bool {
 
 fn split_url_host_path(url: &str) -> (String, String) {
     // Strip scheme://.
-    let no_scheme = url
-        .find("://")
-        .map(|i| &url[i + 3..])
-        .unwrap_or(url);
+    let no_scheme = url.find("://").map(|i| &url[i + 3..]).unwrap_or(url);
     match no_scheme.find('/') {
         Some(i) => (no_scheme[..i].to_string(), no_scheme[i..].to_string()),
         None => (no_scheme.to_string(), String::new()),
@@ -287,13 +284,19 @@ mod tests {
 
     #[test]
     fn anchored_host_subdomain_match() {
-        assert!(host_only("||doubleclick.net", "https://ads.doubleclick.net/"));
+        assert!(host_only(
+            "||doubleclick.net",
+            "https://ads.doubleclick.net/"
+        ));
     }
 
     #[test]
     fn anchored_host_unrelated_does_not_match() {
         assert!(!host_only("||doubleclick.net", "https://example.com/"));
-        assert!(!host_only("||doubleclick.net", "https://notdoubleclick.net/"));
+        assert!(!host_only(
+            "||doubleclick.net",
+            "https://notdoubleclick.net/"
+        ));
     }
 
     #[test]
