@@ -36,6 +36,11 @@ Chrome / Brave / Edge (MV3) browser extensions by abix.
 - **[docs/todo.md](docs/todo.md)** — P0 / P1 / P2 / P3 priorities
   across all three extensions. Start here if you don't know
   what to work on next.
+- **[docs/review-2026-04.md](docs/review-2026-04.md)** — Kovarex-
+  style review against the 10/10 bar ("runs 10 years, daily use
+  by 100 people, never needs a code update"). Cites file:line
+  for every claim. Current grade: 6.5/10, with a map of what
+  closes the gap.
 
 ## Repo layout
 
