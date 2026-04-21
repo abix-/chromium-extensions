@@ -341,13 +341,15 @@ consumes those results has no coverage. After four new detectors
 and a flat-table refactor, verify the simulate panel renders
 matches for every action type.
 
-### Fill `filter-anything-everywhere` test gaps
+### Fill `filter-anything-everywhere` test gaps (partial)
 
-One 128-LOC `word_matcher.spec.ts` covers a 41-LOC
-`word_matcher.ts`. The 416-LOC `content.ts` (the whole runtime)
-has none. Minimum:
+Shipped 2026-04-21: `hostname.spec.ts` with 8 tests covering
+`getCanonicalHostname`. Locks behavior around the single-edge-
+case `www.` prefix strip: doesn't lowercase, doesn't strip
+embedded `www.`, handles edge inputs (empty, bare `www.`,
+`wwwx.`).
 
-- `hostname.ts` unit test (7 lines, trivial).
+Remaining (needs jsdom harness):
 - Keyword matcher end-to-end with fixture DOM.
 - Mutation-observer debounce path.
 
