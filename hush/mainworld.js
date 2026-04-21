@@ -143,10 +143,11 @@
   }
 
   // Test-reachable surface for the cross-language stack-origin
-  // contract test (see hush/test/stack_origin.test.mjs). Same
-  // exposure pattern as `window.__hush_stub_q__` below. Page JS
-  // can read it but can't do anything destructive - stackOriginHost
-  // is a pure function of its string-array argument.
+  // contract test (see hush/test/stack_origin.test.mjs) and the
+  // host-pattern match tests (see hush/test/host_pattern.test.mjs).
+  // Same exposure pattern as `window.__hush_stub_q__` below. Page
+  // JS can read it but can't do anything destructive - both are
+  // pure functions of their arguments.
   try { window.__hush_mainworld__ = { stackOriginHost }; } catch (e) {}
 
   // Runtime self-test for the V8 stack-frame format. The parser in
@@ -224,6 +225,15 @@
       return "";
     }
   }
+
+  // Expose matchesHostPattern alongside stackOriginHost so the
+  // host-pattern regression tests can call it directly. Same
+  // no-destructive-access property.
+  try {
+    if (window.__hush_mainworld__) {
+      window.__hush_mainworld__.matchesHostPattern = matchesHostPattern;
+    }
+  } catch (e) {}
 
   // Parse the comma-separated dataset attribute into a filter list.
   // Caller filters empty entries so the list is always usable.
