@@ -162,6 +162,12 @@ pub struct PopupSnapshot {
     /// site config matched).
     #[serde(default)]
     pub site_rules: SiteConfig,
+    /// Per-SW-wake bootstrap-error log. Surfaces as a red banner
+    /// at the top of the popup so users see startup-path failures
+    /// (DNR sync, allowlist load, etc.) without opening DevTools.
+    /// Empty on a healthy wake.
+    #[serde(default, rename = "bootstrapErrors")]
+    pub bootstrap_errors: Vec<crate::chrome_bridge::BootstrapError>,
 }
 
 /// WASM entry. Called by `popup.js` once per popup open.
@@ -235,6 +241,9 @@ pub async fn hush_popup_main() -> Result<(), JsValue> {
     let events = chrome_bridge::get_firewall_events(tab_id)
         .await
         .unwrap_or_default();
+    let bootstrap_errors = chrome_bridge::get_bootstrap_errors()
+        .await
+        .unwrap_or_default();
 
     // matched_domain resolves from the tab's running stats first, then
     // falls back to a hostname-suffix lookup in the user config. This
@@ -284,6 +293,7 @@ pub async fn hush_popup_main() -> Result<(), JsValue> {
         broken_selectors: stats.broken_selectors,
         removed_elements: stats.removed_elements,
         tab_url: tab.url,
+        bootstrap_errors,
     };
     mount_popup_inner(snap)
 }
@@ -327,6 +337,7 @@ fn PopupRoot(snap: PopupSnapshot) -> impl IntoView {
     });
 
     view! {
+        <BootstrapErrorBanner errors=snap.bootstrap_errors.clone() />
         <MatchedSite
             hostname=snap.hostname.clone()
             matched_domain=snap.matched_domain.clone()
@@ -1885,6 +1896,57 @@ fn MatchedSite(hostname: String, matched_domain: Option<String>) -> impl IntoVie
                 }.into_any(),
             }}
         </div>
+    }
+}
+
+/// Red warning banner surfacing any bootstrap / storage-changed
+/// errors recorded since the last service-worker wake. Empty =
+/// rendered as an empty div (no space taken). Non-empty =
+/// scrolling list of phase + message lines so a user can tell
+/// 'DNR didn't sync' from 'allowlist failed to load' without
+/// opening DevTools.
+#[component]
+fn BootstrapErrorBanner(errors: Vec<crate::chrome_bridge::BootstrapError>) -> impl IntoView {
+    view! {
+        {move || {
+            if errors.is_empty() {
+                view! { <div /> }.into_any()
+            } else {
+                let count = errors.len();
+                let rows = errors.iter().map(|e| {
+                    view! {
+                        <div style="font-family: ui-monospace, monospace;
+                                    font-size: 10px; color: #7a1c12;
+                                    padding: 2px 0; word-break: break-all;">
+                            <span style="font-weight:600;">{e.phase.clone()}</span>
+                            " "
+                            {e.msg.clone()}
+                        </div>
+                    }
+                }).collect::<Vec<_>>();
+                view! {
+                    <div class="rust-bootstrap-errors"
+                         style="padding: 6px 10px; font-size: 11px;
+                                background: #fde8e4; border: 1px solid #e8a198;
+                                border-radius: 4px; margin: 6px 0;
+                                color: #7a1c12;">
+                        <div style="font-weight: 600; margin-bottom: 4px;">
+                            {format!("{count} bootstrap error{} this service-worker wake",
+                                    if count == 1 { "" } else { "s" })}
+                        </div>
+                        <div style="max-height: 90px; overflow-y: auto;">
+                            {rows}
+                        </div>
+                        <div style="font-size: 10px; margin-top: 4px; color:#a14535;">
+                            "These failures mean a part of Hush's runtime didn't "
+                            "start cleanly. Try reloading the extension from "
+                            "chrome://extensions. If it persists, copy the Debug "
+                            "payload (button below) and file a bug."
+                        </div>
+                    </div>
+                }.into_any()
+            }
+        }}
     }
 }
 

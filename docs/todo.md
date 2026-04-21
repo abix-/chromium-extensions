@@ -68,19 +68,32 @@ Scope:
 - Delete `leptos` from `hush/Cargo.toml`. Delete `mem::forget
   (leptos::mount::mount_to(...))` incantations (5 sites).
 
-### Finish surfacing swallowed errors to the debug payload + badge
+### (mostly done 2026-04-21) Surface swallowed errors
 
-2026-04-21 session covered the startup/storage-changed paths
-(`background.rs:430` retry loop, `:1021-1025` onInstalled,
-`:1038-1040` onStartup, config-changed sync, allowlist-changed
-refresh). Still pending: the ~18 `.ok()` sites in
-`background.rs` that drop minor errors (badge updates at
-`:743-751, :1055-1056`, DNR rule metadata extraction at
-`:582-597`, storage-read error paths). And the review's
-"better" outcome: surface startup failure to the popup
-debug-info panel as a dedicated "bootstrap-health" field and
-a badge color/title change so users see something broke
-without opening DevTools.
+Earlier: all 6 startup / storage-changed paths
+(`refresh_debug_flag`, `seed_config_if_empty`, `seed_allowlist_if_empty`,
+`load_allowlist`, `sync_dynamic_rules`, plus the retry loop +
+config-changed sync + allowlist-changed load) route through
+`log_error` with descriptive phase prefixes.
+
+Now: that's paired with a **bootstrap-health surface**. Every
+such failure also pushes a `BootstrapError { t, phase, msg }`
+onto a per-SW-wake FIFO (cap 20) in `BackgroundState`. New
+message `hush:get-bootstrap-errors` exposes it; the popup's
+new `<BootstrapErrorBanner>` renders a red banner at the top
+with a scrollable list of phase + message lines. Silent on a
+healthy wake.
+
+Still pending (P2 follow-up): the ~18 minor `.ok()` sites in
+`background.rs` (badge updates, DNR-rule metadata extraction)
+still swallow. Their failures are cosmetic and don't warrant
+the banner; consider a dedicated "minor-errors counter" or
+leave as-is.
+
+Also pending: badge color/title change (currently no change -
+banner is the only surface). Adding badge requires coordinating
+with the existing yellow-`!` / grey-count badge states; modeled
+but not yet implemented.
 
 ## P1 - hard infrastructure gaps
 

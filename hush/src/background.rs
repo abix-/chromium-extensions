@@ -105,7 +105,24 @@ struct BackgroundState {
     persist_firewall_log_scheduled: bool,
     sync_in_flight: bool,
     sync_pending: bool,
+    /// Per-SW-wake bootstrap-health log. Each entry records a
+    /// startup / storage-changed path that failed to complete.
+    /// Surfaces in the popup as a red banner so users can see
+    /// 'the extension is running but DNR didn't sync' without
+    /// opening DevTools. Reset on SW cold-wake (not persisted)
+    /// because the errors pertain to THIS wake's bootstrap. Capped
+    /// at [`MAX_BOOTSTRAP_ERRORS`] via FIFO.
+    bootstrap_errors: VecDeque<BootstrapError>,
 }
+
+#[derive(Clone, Serialize)]
+struct BootstrapError {
+    t: String,
+    phase: String,
+    msg: String,
+}
+
+const MAX_BOOTSTRAP_ERRORS: usize = 20;
 
 #[derive(Clone, Serialize)]
 struct LogEntry {
@@ -162,7 +179,7 @@ pub fn hush_background_main() -> Result<(), JsValue> {
     // IIFE at the bottom of the original background.js.
     spawn_local(async {
         if let Err(e) = bg_woke_up().await {
-            log_error(&format!("bg_woke_up failed: {:?}", e));
+            record_bootstrap_error("bg_woke_up", format!("{:?}", e));
         }
     });
     Ok(())
@@ -208,6 +225,27 @@ fn log(msg: &str) {
 fn log_error(msg: &str) {
     push_log("error", "bg", msg.to_string());
     web_sys::console::error_2(&JsValue::from_str("[Hush bg]"), &JsValue::from_str(msg));
+}
+
+/// Log a startup / storage-changed path failure AND record it on
+/// the per-SW-wake bootstrap-health list so the popup can surface
+/// it. Every call site that routes through this helper becomes
+/// discoverable in the Bootstrap Errors banner without the user
+/// opening DevTools.
+fn record_bootstrap_error(phase: &str, err_msg: String) {
+    let full = format!("{phase} failed: {err_msg}");
+    log_error(&full);
+    STATE.with(|s| {
+        let mut state = s.borrow_mut();
+        state.bootstrap_errors.push_back(BootstrapError {
+            t: iso_now(),
+            phase: phase.to_string(),
+            msg: err_msg,
+        });
+        while state.bootstrap_errors.len() > MAX_BOOTSTRAP_ERRORS {
+            state.bootstrap_errors.pop_front();
+        }
+    });
 }
 
 // ---------------------------------------------------------------------------
@@ -1066,25 +1104,19 @@ fn install_on_installed() -> Result<(), JsValue> {
         set_default_badge_color();
         spawn_local(async {
             if let Err(e) = refresh_debug_flag().await {
-                log_error(&format!("onInstalled: refresh_debug_flag failed: {:?}", e));
+                record_bootstrap_error("onInstalled.refresh_debug_flag", format!("{:?}", e));
             }
             if let Err(e) = seed_config_if_empty().await {
-                log_error(&format!(
-                    "onInstalled: seed_config_if_empty failed: {:?}",
-                    e
-                ));
+                record_bootstrap_error("onInstalled.seed_config_if_empty", format!("{:?}", e));
             }
             if let Err(e) = seed_allowlist_if_empty().await {
-                log_error(&format!(
-                    "onInstalled: seed_allowlist_if_empty failed: {:?}",
-                    e
-                ));
+                record_bootstrap_error("onInstalled.seed_allowlist_if_empty", format!("{:?}", e));
             }
             if let Err(e) = load_allowlist().await {
-                log_error(&format!("onInstalled: load_allowlist failed: {:?}", e));
+                record_bootstrap_error("onInstalled.load_allowlist", format!("{:?}", e));
             }
             if let Err(e) = sync_dynamic_rules().await {
-                log_error(&format!("onInstalled: sync_dynamic_rules failed: {:?}", e));
+                record_bootstrap_error("onInstalled.sync_dynamic_rules", format!("{:?}", e));
             }
         });
     });
@@ -1099,13 +1131,13 @@ fn install_on_startup() -> Result<(), JsValue> {
         set_default_badge_color();
         spawn_local(async {
             if let Err(e) = refresh_debug_flag().await {
-                log_error(&format!("onStartup: refresh_debug_flag failed: {:?}", e));
+                record_bootstrap_error("onStartup.refresh_debug_flag", format!("{:?}", e));
             }
             if let Err(e) = load_allowlist().await {
-                log_error(&format!("onStartup: load_allowlist failed: {:?}", e));
+                record_bootstrap_error("onStartup.load_allowlist", format!("{:?}", e));
             }
             if let Err(e) = sync_dynamic_rules().await {
-                log_error(&format!("onStartup: sync_dynamic_rules failed: {:?}", e));
+                record_bootstrap_error("onStartup.sync_dynamic_rules", format!("{:?}", e));
             }
         });
     });
@@ -1165,10 +1197,7 @@ fn install_storage_on_changed() -> Result<(), JsValue> {
         {
             spawn_local(async {
                 if let Err(e) = sync_dynamic_rules().await {
-                    log_error(&format!(
-                        "config-changed: sync_dynamic_rules failed: {:?}",
-                        e
-                    ));
+                    record_bootstrap_error("config-changed.sync_dynamic_rules", format!("{:?}", e));
                 }
                 recompute_all_tab_suggestions().await;
             });
@@ -1180,10 +1209,7 @@ fn install_storage_on_changed() -> Result<(), JsValue> {
         {
             spawn_local(async {
                 if let Err(e) = load_allowlist().await {
-                    log_error(&format!(
-                        "allowlist-changed: load_allowlist failed: {:?}",
-                        e
-                    ));
+                    record_bootstrap_error("allowlist-changed.load_allowlist", format!("{:?}", e));
                 } else {
                     log("allowlist updated");
                 }
@@ -1442,6 +1468,10 @@ fn handle_message(msg: JsValue, sender: JsValue, send_response: JsValue) -> JsVa
         }
         "hush:get-all-broken-selectors" => {
             handle_get_all_broken_selectors(&send_response);
+            JsValue::FALSE
+        }
+        "hush:get-bootstrap-errors" => {
+            handle_get_bootstrap_errors(&send_response);
             JsValue::FALSE
         }
         "hush:get-suggestions" => {
@@ -1918,6 +1948,20 @@ fn handle_get_all_broken_selectors(send_response: &JsValue) {
     };
     if let Ok(v) = crate::chrome_bridge::to_js(&broken) {
         let _ = Reflect::set(&reply, &JsValue::from_str("broken"), &v);
+    }
+    call_send_response(send_response, &reply.into());
+}
+
+/// Ship the per-SW-wake bootstrap-error list so the popup can
+/// render a warning banner. Empty reply is expected for a healthy
+/// wake; non-empty means something in onInstalled / onStartup /
+/// storage-changed failed and the user should know.
+fn handle_get_bootstrap_errors(send_response: &JsValue) {
+    let errors: Vec<BootstrapError> =
+        STATE.with(|s| s.borrow().bootstrap_errors.iter().cloned().collect());
+    let reply = Object::new();
+    if let Ok(v) = crate::chrome_bridge::to_js(&errors) {
+        let _ = Reflect::set(&reply, &JsValue::from_str("errors"), &v);
     }
     call_send_response(send_response, &reply.into());
 }

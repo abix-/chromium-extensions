@@ -649,6 +649,44 @@ pub async fn get_all_broken_selectors() -> Result<crate::types::BrokenSelectors,
     Ok(resp.broken)
 }
 
+/// Per-SW-wake bootstrap-error entry. Matches the shape background
+/// records when a startup / storage-changed step fails so the
+/// popup can render a red warning banner instead of users having
+/// to open DevTools to see the same failure.
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct BootstrapError {
+    /// ISO-8601 timestamp of the failure. Present on the wire for
+    /// future "when did it fail" UI; the current banner displays
+    /// only phase + msg because the banner already scopes to
+    /// "this service-worker wake" so absolute timestamps are
+    /// mostly redundant.
+    #[serde(default)]
+    #[allow(dead_code)]
+    pub t: String,
+    #[serde(default)]
+    pub phase: String,
+    #[serde(default)]
+    pub msg: String,
+}
+
+pub async fn get_bootstrap_errors() -> Result<Vec<BootstrapError>, JsValue> {
+    #[derive(Serialize)]
+    struct Msg {
+        #[serde(rename = "type")]
+        type_: &'static str,
+    }
+    #[derive(Deserialize, Default)]
+    #[serde(default)]
+    struct Resp {
+        errors: Vec<BootstrapError>,
+    }
+    let resp: Resp = send(&Msg {
+        type_: "hush:get-bootstrap-errors",
+    })
+    .await?;
+    Ok(resp.errors)
+}
+
 /// POST `hush:get-rule-diagnostics` and return the per-rule diagnostic
 /// rows. Empty on error so the popup always renders.
 pub async fn get_rule_diagnostics(
