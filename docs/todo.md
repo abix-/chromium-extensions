@@ -353,10 +353,12 @@ bug breaks sites silently. Load 5-10 popular sites with each
 action active; record expected breakage in
 `hush/docs/spoof-compatibility.md`.
 
-### `zoom-extension/CHANGELOG.md`
+### (done 2026-04-21) `zoom-extension/CHANGELOG.md`
 
-Three pivots, no changelog. Seed with the current state and
-each meaningful iteration going forward.
+Seeded with the two 2026-04-21 changes (loadedmetadata listener
+replacing the 1 Hz poll, rename-gate comment on content.css).
+Policy section on the file describes the per-change entry
+convention going forward.
 
 ## P3 — nice-to-have
 
