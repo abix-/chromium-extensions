@@ -10,19 +10,24 @@ mouse wheel to zoom in / out; move the mouse (still holding
 Shift+Alt) to pan. Current zoom percentage flashes in a badge
 top-right.
 
-**2. Block YouTube's hover-preview on thumbnails.**  YouTube's
-"Inline Playback" feature auto-plays a muted video preview when
-the cursor lingers over a thumbnail. When you scroll the page,
-every thumbnail that passes under the cursor fires its own
-preview — noisy and disruptive. This extension CSS-hides the
-preview element (`ytd-video-preview` and friends) so thumbnails
-stay static and scrolling is quiet.
+**2. Block "scroll for more videos" in fullscreen.**  YouTube's
+new fullscreen UI reveals a "more videos" grid when you scroll
+the mouse wheel (or press Page Up / Page Down) while watching
+fullscreen. This extension intercepts wheel + PgUp/PgDn events
+while the browser is in fullscreen so that gesture no longer
+scrolls the recommendation grid into view. The Shift+Alt zoom
+shortcut (above) is preserved — wheel events with both modifiers
+held pass through untouched.
 
-Uses the same approach established uBlock Origin filters use:
-`display: none !important` on the preview custom element. No
-event interception, no race with YouTube's handlers.
+Technique (matches what the established userscripts use):
+listen for `fullscreenchange` → on enter, attach capture-phase
+`wheel` + `keydown` listeners on `window` that call
+`preventDefault()` → on exit, detach and restore the saved
+scroll position. Also CSS-hides `.ytp-fullerscreen-edu-button`
+(the "scroll for more videos" hint button) and
+`.ytp-fullscreen-grid` as a belt-and-braces guard.
 
-Toggle the preview-blocking in the extension's options page
+Toggle the blocker in the extension's options page
 (`chrome://extensions/` → this extension → **Details** →
 **Extension options**). Default: **on**.
 

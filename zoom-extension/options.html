@@ -50,17 +50,16 @@
 
   <div class="row">
     <label>
-      <input type="checkbox" id="block-hover-preview">
+      <input type="checkbox" id="block-fullscreen-scroll">
       <div>
-        <div class="title">Block YouTube's hover preview on thumbnails</div>
+        <div class="title">Block "scroll for more videos" in fullscreen</div>
         <div class="help">
-          YouTube's <b>Inline Playback</b> feature auto-plays a
-          muted video preview when the cursor lingers on a
-          thumbnail. When you scroll the page, every thumbnail
-          that passes under the cursor fires its own preview.
-          Enable this to hide the preview element entirely —
-          thumbnails stay static and scrolling is quiet. Zoom via
-          Shift+Alt still works.
+          YouTube's new fullscreen UI reveals a "more videos" grid
+          when you scroll the mouse wheel or press Page Up/Page
+          Down while watching fullscreen. This option intercepts
+          wheel + PgUp/PgDn events while a video is fullscreen,
+          and CSS-hides the "scroll for more videos" hint button.
+          Zoom via Shift+Alt+wheel still works in fullscreen.
         </div>
       </div>
     </label>

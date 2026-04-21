@@ -98,73 +98,132 @@
   document.addEventListener("mousemove", handleMouseMove, false);
 
   // -----------------------------------------------------------------
-  // YouTube hover-preview blocker (per-user setting).
+  // YouTube fullscreen scroll-to-more-videos blocker (per-user).
   //
-  // YouTube's "Inline Playback" feature auto-plays a muted video
-  // preview when the cursor lingers over a thumbnail. The feature
-  // is hover-triggered, not wheel-triggered — what users
-  // experience as "scrolling shows previews" is actually the
-  // cursor passing over new thumbnails as the page scrolls.
+  // YouTube's new fullscreen UI surfaces a "more videos" grid
+  // when the user scrolls the mouse wheel (or hits PgUp/PgDn)
+  // while watching fullscreen. Disruptive if you're just adjust-
+  // ing volume or reaching for a scroll gesture out of habit.
   //
-  // The reliable fix (same one established uBlock Origin filter
-  // lists use) is CSS: set `display: none !important` on the
-  // preview custom element so YouTube can insert it but it never
-  // renders and never starts the video. No event interception, no
-  // race with YouTube's own wheel handlers.
+  // Reliable fix (same pattern as the popular userscripts):
   //
-  // Canonical filter per the adblock community:
-  //   youtube.com###preview > ytd-video-preview.style-scope
-  //     .ytd-rich-grid-renderer
-  // We broaden the selector set to catch preview elements on the
-  // watch-page sidebar, search results, subscriptions grid, and
-  // newer `yt-*-view-model` designs.
+  //   1. Watch `fullscreenchange`. When entering fullscreen,
+  //      attach capture-phase `wheel` + `keydown` listeners on
+  //      `window` that call `preventDefault()`. When exiting,
+  //      remove them and restore the saved scroll position.
+  //   2. Preserve the zoom shortcut (Shift+Alt+wheel) — let it
+  //      through even during fullscreen.
+  //   3. Also CSS-hide `.ytp-fullerscreen-edu-button` (the "scroll
+  //      for more videos" hint button) and `.ytp-fullscreen-grid`
+  //      as a belt-and-braces guard if YouTube manages to scroll
+  //      via some path we didn't intercept.
   //
-  // Controlled by `chrome.storage.sync.blockHoverPreview` (default
-  // true). Changes apply live via `storage.onChanged` by
-  // inserting/removing the <style> element.
+  // Setting: `chrome.storage.sync.blockFullscreenScroll` (default
+  // true). Changes apply live via `storage.onChanged`.
   // -----------------------------------------------------------------
-  const HOVER_PREVIEW_CSS = `
-    ytd-video-preview,
-    ytd-thumbnail-overlay-loading-preview-renderer,
-    #preview > ytd-video-preview,
-    .ytd-video-preview,
-    .ytd-thumbnail-overlay-loading-preview-renderer,
-    yt-video-preview-view-model,
-    yt-inline-video-player,
-    .ytmPlayerFullBleedContainer [data-purpose="inline-preview"] {
+  const FULLSCREEN_CSS = `
+    button.ytp-fullerscreen-edu-button.ytp-button,
+    .ytp-fullerscreen-edu-button,
+    .ytp-fullscreen-grid {
       display: none !important;
     }
   `;
-  const STYLE_ID = "hush-zoom-hover-preview-blocker";
+  const STYLE_ID = "hush-zoom-fullscreen-scroll-blocker";
+  const SCROLL_KEYS = new Set([33, 34]); // PgUp, PgDn
+  const WHEEL_OPTS = { passive: false, capture: true };
+  const KEY_OPTS = { capture: true };
 
-  function applyPreviewBlocker(enabled) {
+  let blockFullscreenScroll = true;
+  let savedScrollY = 0;
+
+  function isFullscreen() {
+    return !!(
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement
+    );
+  }
+
+  function fsWheelHandler(e) {
+    // Preserve the Shift+Alt zoom shortcut even in fullscreen.
+    if (e.shiftKey && e.altKey) return;
+    e.preventDefault();
+  }
+
+  function fsKeyHandler(e) {
+    if (SCROLL_KEYS.has(e.keyCode)) {
+      e.preventDefault();
+    }
+  }
+
+  function attachFullscreenBlockers() {
+    savedScrollY = window.scrollY;
+    window.addEventListener("wheel", fsWheelHandler, WHEEL_OPTS);
+    window.addEventListener("keydown", fsKeyHandler, KEY_OPTS);
+  }
+
+  function detachFullscreenBlockers(restoreScroll) {
+    window.removeEventListener("wheel", fsWheelHandler, WHEEL_OPTS);
+    window.removeEventListener("keydown", fsKeyHandler, KEY_OPTS);
+    if (restoreScroll) {
+      // YouTube sometimes leaves the page scrolled after fullscreen
+      // exit; restore what the user had before fullscreen entry.
+      setTimeout(() => window.scrollTo(0, savedScrollY), 20);
+    }
+  }
+
+  function applyStyle(enabled) {
     const existing = document.getElementById(STYLE_ID);
     if (enabled) {
       if (existing) return;
       const style = document.createElement("style");
       style.id = STYLE_ID;
-      style.textContent = HOVER_PREVIEW_CSS;
-      // documentElement is available at document_end; fallback to
-      // body just in case.
+      style.textContent = FULLSCREEN_CSS;
       (document.documentElement || document.body || document.head).appendChild(style);
     } else if (existing) {
       existing.remove();
     }
   }
 
+  function onFullscreenChange() {
+    if (!blockFullscreenScroll) {
+      detachFullscreenBlockers(false);
+      return;
+    }
+    if (isFullscreen()) {
+      attachFullscreenBlockers();
+    } else {
+      detachFullscreenBlockers(true);
+    }
+  }
+
+  function applyFullscreenScrollBlocker(enabled) {
+    blockFullscreenScroll = !!enabled;
+    applyStyle(blockFullscreenScroll);
+    // Re-evaluate current state so a live toggle while already
+    // fullscreen takes effect immediately without waiting for
+    // the next fullscreenchange.
+    onFullscreenChange();
+  }
+
+  document.addEventListener("fullscreenchange", onFullscreenChange);
+  document.addEventListener("webkitfullscreenchange", onFullscreenChange);
+
   try {
-    chrome.storage.sync.get({ blockHoverPreview: true }).then((s) => {
-      applyPreviewBlocker(!!s.blockHoverPreview);
+    chrome.storage.sync.get({ blockFullscreenScroll: true }).then((s) => {
+      applyFullscreenScrollBlocker(!!s.blockFullscreenScroll);
     });
     chrome.storage.onChanged.addListener((changes, area) => {
-      if (area === "sync" && changes.blockHoverPreview) {
-        applyPreviewBlocker(!!changes.blockHoverPreview.newValue);
+      if (area === "sync" && changes.blockFullscreenScroll) {
+        applyFullscreenScrollBlocker(
+          !!changes.blockFullscreenScroll.newValue
+        );
       }
     });
   } catch (e) {
-    // Extension context gone; apply the default so users still
-    // benefit if the storage fetch fails.
-    applyPreviewBlocker(true);
+    // Extension context gone; default behavior stays on.
+    applyFullscreenScrollBlocker(true);
   }
  
   // Reapply zoom when full-screen mode changes.
