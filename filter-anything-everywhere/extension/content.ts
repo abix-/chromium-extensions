@@ -168,7 +168,7 @@ const my_id = findMyIdOrPlaceHolder();
 function inIframe(): boolean {
   try {
     return window.self !== window.top;
-  } catch (e) {
+  } catch {
     return true;
   }
 }

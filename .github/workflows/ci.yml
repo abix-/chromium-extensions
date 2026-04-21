@@ -68,9 +68,8 @@ jobs:
       - name: install
         run: npm ci
 
-      # lint intentionally skipped: .eslintrc.cjs predates eslint 9/10
-      # flat-config; migration to eslint.config.js is tracked as P2
-      # in docs/todo.md.
+      - name: lint
+        run: npm run lint
 
       - name: test
         run: npm test

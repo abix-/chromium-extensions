@@ -65,7 +65,7 @@ describe('regexpFromWordList', () => {
   describe("when matching special characters", () => {
     const specialCharacters = ['-', '[', '\\', ']', '/', '{', '}', '(', ')', '+', '.', '^', '$', '|'];
     const table = specialCharacters.map((str) => [[str], true]);
-    it.each(table)('should handle %s', (words: string[], match: boolean) => {
+    it.each(table)('should handle %s', (words: string[], _match: boolean) => {
       const re = regexpFromWordList(words);
       expect(re.test(words[0])).toBe(true);
     });

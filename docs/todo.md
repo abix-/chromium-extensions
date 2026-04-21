@@ -250,17 +250,37 @@ bg_logic test).
 CI workflow now runs `cargo clippy --all-targets -- -D warnings`
 on every push/PR. New lints can't land silently.
 
-### Migrate `filter-anything-everywhere` to eslint 10 flat-config
+### (done 2026-04-21) Migrate `filter-anything-everywhere` to eslint 10 flat-config
 
-`filter-anything-everywhere/.eslintrc.cjs` predates eslint 9's
-default-flat-config switch. `npm run lint` fails out of the box
-under eslint 10 with a migration-required message. CI step
-skipped until this lands.
+Shipped: `.eslintrc.cjs` deleted, replaced with
+`eslint.config.js` that imports `@typescript-eslint/parser`,
+`@typescript-eslint/eslint-plugin`, `eslint-plugin-prettier`,
+`eslint-config-prettier` directly (no `@eslint/js` dep added -
+the TS recommended rule set covers the important bits for this
+codebase). Two config blocks: production TS files get
+tsconfig-project-linked type-checked linting; `*.spec.ts` files
+get a separate block without project linkage and with jest
+globals so they parse cleanly.
 
-Migration path: rename `.eslintrc.cjs` -> `eslint.config.js`,
-export a single flat-config array, drop the `parserOptions`
-style that's now rolled into per-rule configs. 20-30 minutes
-by the [eslint migration guide](https://eslint.org/docs/latest/use/configure/migration-guide).
+Two rule adjustments to match fork convention (and document
+them in the config file):
+- `@typescript-eslint/ban-ts-comment` loosened to accept
+  `@ts-ignore` with a description (see the CHANGELOG note
+  about why @ts-expect-error wasn't suitable here)
+- `@typescript-eslint/no-explicit-any` downgraded to warn
+  (extension code legitimately reaches for `any` for dynamic
+  chrome/window fields)
+- `@typescript-eslint/no-unused-vars` honors `_`-prefix so
+  `catch (_e)` / `(_unused, used) =>` patterns are quiet
+
+Also trivial: `package.json` lint script no longer needs
+`--ext .ts` (flat config's `files` pattern handles the glob).
+CI re-enabled `npm run lint` for filter-anything-everywhere.
+
+Current state: `npm run lint` passes cleanly with 1 warning
+(a legit `any` in `browser_action.ts` accessing
+`window.hasAqi`; the warning is correct signal, stays visible,
+doesn't block the build).
 
 ### (closed 2026-04-21) Narrow `#![allow(clippy::too_many_arguments)]`
 

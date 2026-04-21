@@ -2,8 +2,8 @@
   "scripts": {
     "build": "powershell ./prepare_extension.ps1",
     "format": "prettier --write . --ignore-path .prettierignore",
-    "lint": "eslint . --ext .ts",
-    "lint:fix": "eslint . --ext .ts --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "test": "node --experimental-vm-modules ./node_modules/.bin/jest"
   },
   "devDependencies": {
