@@ -15,19 +15,42 @@ bundle, and criterion inherited that profile.
 
 ## Latest run
 
-**2026-04-20**, Windows 10, rustc 1.95.0, Node v25.3.0, criterion 0.5,
-`-C target-cpu=native`. After foldhash + Arc<[String]> refactor.
+**2026-04-21**, Windows 10, rustc 1.95.0, criterion 0.8,
+`-C target-cpu=native`. Rerun after the session that added four new
+detectors since the prior baseline (attention-tracking,
+clipboard-read, device-api-probe, navigator-fp) plus the
+`rule_id` JSON-array reformat and the hasSpoofTag tightening.
+The four new detectors are covered by the `heavy_tab` fixture's
+js-calls signals.
+
+| Fixture | Rust (native max-speed) | 2026-04-20 baseline | Delta |
+|---|---|---|---|
+| light_tab (100 res + 50 js-calls + 5 iframes + 5 stickies) | **131.4 us** | 130.7 us | +0.5% (within noise) |
+| heavy_tab (500 + 500 + 20 + 20, at production cap) | **663.3 us** | 716.8 us | **-7.5% faster** |
+| 50_tabs_of_heavy (50 heavy_tab sequential) | **33.2 ms** | 36.1 ms | **-8.0% faster** |
+
+Heavy_tab fixture still produces 31 suggestions so the work done
+matches the prior baseline; the speedup is pure throughput. Likely
+sources: rustc 1.95 + criterion 0.8 codegen, the hand-rolled JSON
+escape in rule_id (replaced a `format!("{a}::{s}::{m}")` with a
+`String::with_capacity` + byte-level push loop, which is
+allocation-equivalent but avoids the format!-machinery overhead),
+and general LTO improvements.
+
+No perf regression from the four new detectors - net win despite
+the additional work.
+
+### Prior run (2026-04-20, preserved for comparison)
 
 | Fixture | Rust (max-speed) | Node V8 | Rust/JS |
 |---|---|---|---|
-| light_tab (100 res + 50 js-calls + 5 iframes + 5 stickies) | **130.7 µs** | 137 µs | **0.95x (Rust 4.5% faster)** |
-| heavy_tab (500 + 500 + 20 + 20, at production cap) | **716.8 µs** | 848 µs | **0.85x (Rust 15% faster)** |
-| 50_tabs_of_heavy (50 heavy_tab sequential) | **36.1 ms** | 43.8 ms | **0.82x (Rust 18% faster)** |
+| light_tab | **130.7 us** | 137 us | **0.95x (Rust 4.5% faster)** |
+| heavy_tab | **716.8 us** | 848 us | **0.85x (Rust 15% faster)** |
+| 50_tabs_of_heavy | **36.1 ms** | 43.8 ms | **0.82x (Rust 18% faster)** |
 
-Both implementations produce the same 31 suggestions from the
-heavy_tab fixture, so the work done is identical. The ~14% Rust edge
-comes from LLVM's auto-vectorization of the per-detector loops and
-avoided GC pressure on the hot path.
+Rust/JS column not rerun on 2026-04-21 (would require rerunning
+the Node benchmark identically). Rust-only numbers above are the
+authoritative post-session baseline.
 
 ### What the numbers mean for a heavy Chrome user
 
@@ -206,3 +229,4 @@ notice the difference either way.
 | 2026-04-20 | `+foldhash` + `sort_unstable_by` + pre-sized HashSet | 754 µs | 848 µs |
 | 2026-04-20 | `+Arc<[String]>` to skip per-suggestion Vec clones | 701 µs | 848 µs |
 | 2026-04-20 | `+pre-sized HashMaps via agg_map()` + Vec capacity + Detector trait | **717 µs** | 848 µs |
+| 2026-04-21 | +4 detectors (attention, clipboard, device-api, navigator-fp) + `rule_id` JSON-array + hasSpoofTag tightening + criterion 0.8 | **663 µs** | not rerun |
