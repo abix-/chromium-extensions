@@ -9,12 +9,23 @@ Chrome / Brave / Edge (MV3) browser extensions by abix.
   listener density, fingerprinting-API reads, attention-tracking
   hooks, clipboard sniffing, and hardware-device probes that filter
   lists can't see. Designed to sit alongside Brave Shields or
-  uBlock Origin, not replace them.
+  uBlock Origin, not replace them. Rust → WASM engine + minimal JS
+  bootstrap. Licensed GPL-3.
 
   See [hush/README.md](hush/README.md) for the pitch and
   [hush/docs/comparison.md](hush/docs/comparison.md) for how it
   compares to uBO / Privacy Badger / Ghostery / Brave Shields /
   DDG / NoScript.
+
+- **[filter-anything-everywhere](filter-anything-everywhere/)** —
+  universal keyword blocker for feeds, lists, and comment
+  sections across every site. Fork of [Tommy Li's upstream
+  project](https://github.com/tomlimike/filter-anything-everywhere);
+  carries the original MIT license. TypeScript + Rollup build.
+
+- **[zoom-extension](zoom-extension/)** — YouTube zoom / pan via
+  Shift+Alt+mousewheel and keyboard shortcuts. Pure JS content
+  script, no build step. Licensed GPL-3.
 
 ## Repo layout
 
@@ -39,6 +50,14 @@ For any extension:
 3. `chrome://extensions/` → Developer mode → Load unpacked →
    point at the extension's directory (e.g. `chromium-extensions/hush`).
 
-## License
+## Licensing
 
-GPL-3.0-or-later. See [LICENSE](LICENSE).
+Per-extension, because one extension is a fork of MIT-licensed
+upstream code:
+
+- Repo default: **GPL-3.0-or-later**. See [LICENSE](LICENSE).
+  Applies to every original work in the repo (hush, zoom-extension).
+- **filter-anything-everywhere** carries its own **MIT** license
+  at [filter-anything-everywhere/LICENSE](filter-anything-everywhere/LICENSE)
+  inherited from the upstream project. That license takes
+  precedence for everything inside that directory.
