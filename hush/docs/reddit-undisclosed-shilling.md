@@ -70,21 +70,76 @@ Attributes on the `<shreddit-post>` element:
 | `icon` | `https://styles.redditmedia.com/t5_6y9lox/styles/profileIcon_...` | CUSTOM-uploaded profile icon (see S7) |
 | Body content | Self-post linking to `apnews.com` | Real commentary with outbound link to mainstream news |
 
-## Sample 1 vs Sample 2 - what's the same, what differs
+## Sample 3 (captured 2026-04-29) - probable wholesome-shape shill
 
-| Aspect | Sample 1 (probable shill) | Sample 2 (real, control) |
+Post permalink: `/r/MadeMeSmile/comments/1syyen2/a_man_excited_about_his_iron_man_helmet_and_hand/`
+
+Why this sample matters: it carries NONE of the `is-not-brand-safe` flag (unlike Samples 1 and 2) but the user has classified it as a shill, and the structural signals (default snoovatar, auto-suggested username, bare video on platform CDN, generic feel-good sub) match Sample 1 cleanly. This is a SECOND shill subtype - "wholesome reaction to a product" - that does not trigger Reddit's brand-safety classifier because such content is advertiser-friendly, not advertiser-hostile. The proposed stacked-AND rule with `[is-not-brand-safe]` as a required clause would have FAILED to catch this post.
+
+Subjective read: probable shill, classic reaction-bait shape. The title "A man excited about his Iron man helmet and hand" matches the user's first-message description of the problem ("reaction bullshit about some dumb product") - a man, an emotion, a brand-name licensed product. Iron Man helmet/hand replicas are a known Hasbro/Marvel cosplay product line and a common dropshipping vehicle. The user downvoted the post (visible in the DOM as `vote-type="downvote"`).
+
+Capture context: the user encountered this post via their own profile activity feed (`view-context="ProfileFeed2"`, referrer `/user/abix-/`) - they were reviewing posts they had previously voted on. The original encounter would have been in some feed surface, likely the home feed.
+
+Attributes on the `<shreddit-post>` element:
+
+| Attribute | Value | Notes |
 |---|---|---|
-| `is-not-brand-safe` | present | present |
-| `view-context` | AggregateFeed | AggregateFeed |
-| `post-type` | video | multi_media |
-| `domain` | v.redd.it | self.lazerpig |
-| Subreddit | r/interestingasfuck (generic, ~13M subs) | r/lazerpig (niche fan sub) |
-| Author username | Awkward_Lunch8016 (auto-suggested format) | Bionic_Redhead (personalized) |
-| Profile icon CDN path | `/snoovatar/avatars/` (default) | `/styles/profileIcon_` (custom upload) |
-| Body | bare media, no text | self-post text plus link to apnews.com |
-| Score / comments | 668 / 147 | 57 / 8 |
+| `is-not-brand-safe` | NOT PRESENT | Wholesome reaction is brand-safe in advertiser terms - flag does not fire |
+| `domain` | `v.redd.it` | Platform-CDN video, same as Sample 1 |
+| `post-type` | `video` | Same as Sample 1 |
+| `view-context` | `ProfileFeed2` | Capture surface, not original feed surface |
+| `subreddit-prefixed-name` | `r/MadeMeSmile` | Generic feel-good sub, ~12M subs |
+| `author` | `FewCollar227` | Auto-suggested `Adjective_Noun####` pattern |
+| `author-id` | `t2_fapl1ql9` | |
+| `score` | 2650 | |
+| `comment-count` | 259 | |
+| Upvote ratio | 0.876 | Higher than Sample 1's 0.737; engagement looks healthy on its face |
+| `icon` | `https://preview.redd.it/snoovatar/avatars/bf3b2450-...` | DEFAULT snoovatar - same path family as Sample 1 |
+| `vote-type` | `downvote` | Viewer's own prior vote on this post |
+| `award-count` | 4 | Awards given (`award-id="award_hooray_3"`) |
+| Body | bare video | No text body, no outbound links |
 
-The same-vs-different ratio confirms `is-not-brand-safe` cannot work as a single-attribute rule. It must be combined with attributes that fail on Sample 2. The strongest candidates are the post-type, the icon CDN path, and the body's outbound-link pattern.
+## Sample comparison (3-way)
+
+| Aspect | Sample 1 (outrage-shape shill) | Sample 2 (real, control) | Sample 3 (wholesome-shape shill) |
+|---|---|---|---|
+| `is-not-brand-safe` | present | present | **NOT PRESENT** |
+| `view-context` | AggregateFeed | AggregateFeed | ProfileFeed2 |
+| `post-type` | video | multi_media | video |
+| `domain` | v.redd.it | self.lazerpig | v.redd.it |
+| Subreddit | r/interestingasfuck | r/lazerpig | r/MadeMeSmile |
+| Author username | Awkward_Lunch8016 (auto) | Bionic_Redhead (custom) | FewCollar227 (auto) |
+| Profile icon path | `/snoovatar/avatars/` | `/styles/profileIcon_` | `/snoovatar/avatars/` |
+| Body | bare video | self-post + apnews link | bare video |
+| Score / upvote ratio | 668 / 0.737 | 57 / unknown | 2650 / 0.876 |
+| Title shape | clickbait ("worth every penny") | topical sarcasm | reaction template ("man excited about [product]") |
+
+### Signals that fire on BOTH shill samples but NOT on the real one
+
+- `post-type="video"`
+- `domain="v.redd.it"` (platform-CDN re-host)
+- `[icon*="/snoovatar/avatars/"]` (default snoovatar)
+- Author username matches `Adjective_Noun####` (not directly CSS-queryable)
+- Bare video, no text body, no outbound links
+
+These are the **shill-shape core**. They survive across the outrage and wholesome subtypes.
+
+### Signals that DIFFER between the two shill samples
+
+- `is-not-brand-safe`: present on Sample 1 (outrage), absent on Sample 3 (wholesome)
+- Subreddit category: generic-interest vs feel-good
+- Title shape: clickbait vs reaction-template
+
+These are the **subtype modifiers**. They should NOT be required clauses in any single combined rule. The right approach is a UNION of two narrower per-subtype rules.
+
+### Two shill subtypes - working hypothesis
+
+After three captures, the data suggests at least two distinct astroturf populations operating on Reddit, with different platform-classifier behavior:
+
+- **Subtype A (outrage-shape)**: controversial / shocking / political content packaged as a viral video. Triggers Reddit's `is-not-brand-safe` flag because advertisers do not want adjacency. Lives in generic-interest subs.
+- **Subtype B (wholesome-shape)**: reaction videos to brand-name licensed products, packaged as feel-good content. Does NOT trigger the brand-safety flag because the platform considers wholesome content advertiser-friendly. Lives in feel-good subs.
+
+Same operators may run both, or different operations may target each surface; the DOM evidence cannot distinguish that. What matters for filter design: each subtype needs its own rule.
 
 ## Candidate signals - ranked by durability and false-positive risk
 
@@ -98,12 +153,14 @@ Pros:
 - Composable: combines cleanly with `[post-type]` and `[view-context]` to narrow scope
 
 Cons:
-- Not actually a "shill detector." It is a "won't sell ads against this" tag. False positives confirmed include:
-  - Politically controversial posts (Sample 2 - confirmed on first non-shill capture, content was sarcastic political commentary about a Russian military parade)
-  - Likely also: NSFW-adjacent content, gore/violence/shock content, profanity-heavy posts (predicted, not yet captured as samples)
-- Single-attribute rule is dead on arrival. The flag fired on Sample 1 (probable shill) AND Sample 2 (real political commentary). Cannot discriminate.
+- Not actually a "shill detector." It is a "won't sell ads against this" tag. Confirmed behavior across captures:
+  - Fires on Sample 1 (probable outrage-shape shill, video about controversial reaction content)
+  - Fires on Sample 2 (real political commentary about a Russian military parade)
+  - Does NOT fire on Sample 3 (probable wholesome-shape shill, reaction to Iron Man product) - because wholesome content is advertiser-friendly
+- Single-attribute rule is dead on arrival in TWO directions: false-positive on Sample 2 (real content tagged), false-negative on Sample 3 (shill content untagged).
+- The flag IS still useful as a SUBTYPE selector: presence implies outrage-shape, absence does not exclude shilling.
 
-Status: dead as a single-attribute rule. Useful as ONE clause in a stacked rule (see "Realistic rule shape" section below).
+Status: dead as a single-attribute rule, also dead as a required keystone clause in any combined rule. Useful only inside per-subtype rules (see "Realistic rule shape" section below) - presence narrows to Subtype A, absence narrows to Subtype B.
 
 ### S2. Author-name pattern (LOW leverage as CSS, HIGH human-tell value)
 
@@ -120,15 +177,33 @@ Cons:
 
 Decision: skip as a CSS rule. Possible future feature: `author-pattern` rule type with regex support.
 
-### S3. Title text patterns (NOT QUERYABLE in current Hush)
+### S3. Title text patterns (NOT QUERYABLE in current Hush) - ELEVATED PRIORITY
 
-Reaction-bait titles ("It was worth every penny", "I can't believe this", "30 days later", "...changed my life") are strong human signals.
+Reaction-bait titles span two recognizable templates:
+
+- **Outrage clickbait** ("It was worth every penny", "I can't believe this", "30 days later", "...changed my life")
+- **Wholesome reaction** ("[Person] excited about their [product]", "[Person]'s reaction to [brand-name item]")
 
 Hush rules are pure CSS selectors. CSS does not have `:contains()` or text-content matching. There is no way to write a title-text rule with the current engine.
 
-To use title text as a signal, Hush would need:
-- A text-content matching rule layer (regex or substring), separate from CSS selectors, evaluated in JS
-- Or a scoring pass (see S6)
+Why this is now ELEVATED from "nice to have" to "near-essential":
+
+After Sample 3 it is clear that the wholesome-shape shill subtype (Subtype B) cannot be reliably distinguished from real wholesome content using DOM-structural signals alone. Both shapes use:
+
+- Bare video on `v.redd.it`
+- Default snoovatars (mass user behavior, not just bots)
+- Auto-suggested usernames (also common to real new accounts)
+- Generic feel-good subs (intended audience overlap)
+
+The only stable signal that differs is the title shape. "A man excited about his Iron Man helmet and hand" follows a product-reaction template. "A man excited about his daughter's first steps" does not. CSS cannot tell them apart.
+
+Required engine extension to make S3 viable:
+
+- A text-content matching rule layer (regex or substring), evaluated in JS, that runs in addition to the CSS selector engine
+- Possible rule format: `{ "value": "shreddit-post", "title-regex": "excited about (his|her|their) [a-z ]+ (helmet|gadget|set|kit)" }`
+- Or a separate `title-block` rule type with its own array
+
+Belongs in `roadmap.md` as a feature proposal. The Subtype B rule below is essentially un-shippable without it.
 
 ### S4. Outbound link domain (NOT APPLICABLE to Sample 1)
 
@@ -190,24 +265,48 @@ Cons:
 
 Hypothetical selector clause: `[icon*="/snoovatar/avatars/"]`. Combine with other clauses, never use alone.
 
-## Realistic rule shape: stacked weak signals
+## Realistic rule shape: per-subtype stacked rules
 
-A single strong selector for "this is a shill" does not exist in the DOM. None of the candidate signals above is precise enough alone. The realistic approach is to stack multiple weak selectors with AND:
+Three captures in, the data shows there are at least two distinct shill subtypes hitting Reddit, with different platform-classifier behavior. A single combined rule that requires `[is-not-brand-safe]` would miss the wholesome-shape entirely (Sample 3). A single rule that omits `[is-not-brand-safe]` could in principle catch both subtypes but with severely degraded precision on the wholesome shape (overlap with real wholesome content is huge).
+
+The cleanest shape is a UNION of two narrower stacked rules, one tuned per subtype.
+
+### Subtype A: outrage-shape rule (Sample 1 profile)
 
 ```
-shreddit-post[is-not-brand-safe][post-type="video"][view-context="AggregateFeed"][icon*="/snoovatar/avatars/"]
+shreddit-post[is-not-brand-safe][post-type="video"][icon*="/snoovatar/avatars/"]
 ```
 
 What each clause buys:
 
-- `[is-not-brand-safe]` - Reddit's own classifier flagged it advertiser-unsafe (broad, ~50 percent of false-positive shape on its own)
-- `[post-type="video"]` - the format favored by shills in our captured samples (excludes self-posts and link posts that real users tend to favor)
-- `[view-context="AggregateFeed"]` - showing in the home feed via algorithmic insertion, not because the user explicitly subscribed to the sub
-- `[icon*="/snoovatar/avatars/"]` - author has not customized their profile icon (low-effort account signal)
+- `[is-not-brand-safe]` - Reddit's classifier flagged it advertiser-unsafe (only fires on outrage-shape; acts as the subtype gate)
+- `[post-type="video"]` - shill format
+- `[icon*="/snoovatar/avatars/"]` - default-snoovatar account (low-effort signal)
 
-Sample 1 satisfies all four. Sample 2 fails the `[icon*=]` clause cleanly. This composition trades recall (will miss shills that fail any clause - e.g. shills that customize their snoovatar, or shills using image format instead of video) for precision (very few real posts will satisfy all four).
+We previously included `[view-context="AggregateFeed"]`. Dropped because Sample 3 was captured via ProfileFeed2; in general the original encounter feed is not knowable from the post itself, and a real shill could surface in any feed context. The clause restricts where the rule fires, not whether the post is a shill.
 
-Per-user filter tools are usually well-served by this tradeoff because false positives cause noticeable feed gaps while false negatives just mean "the shill got through, I see it like before." Recall-failure is recoverable; precision-failure erodes trust in the tool.
+False-positive risk: real outrage content (war, politics, controversy) on default-snoovatar accounts. Realistic but bounded - the brand-safety flag is restrictive enough that volume should be tolerable.
+
+### Subtype B: wholesome-shape rule (Sample 3 profile)
+
+```
+shreddit-post:not([is-not-brand-safe])[post-type="video"][domain="v.redd.it"][icon*="/snoovatar/avatars/"]
+```
+
+What each clause buys:
+
+- `:not([is-not-brand-safe])` - explicitly NOT brand-unsafe (subtype gate; excludes outrage content)
+- `[post-type="video"]` - shill format
+- `[domain="v.redd.it"]` - re-hosted on platform CDN
+- `[icon*="/snoovatar/avatars/"]` - default-snoovatar account
+
+False-positive risk: HIGH. Plenty of real users post wholesome videos to feel-good subs from default-snoovatar accounts. Without title-text matching to discriminate "excited about [product]" from "excited about [my kid]", this rule will over-remove real wholesome content.
+
+### Recommended deployment order
+
+1. Ship Subtype A first. Lower false-positive risk because the brand-safety flag is restrictive. Watch for a day, measure FP rate.
+2. HOLD Subtype B until either (a) more samples confirm precision is acceptable, or (b) Hush grows a text-content matching layer that can add a title-regex clause. Without that, B will feel intrusive.
+3. If Subtype A under-performs precision after live testing, add S7's icon-path clause as a stricter requirement (already included), or scope by subreddit.
 
 ### Inverted approach: whitelist trust signals
 
@@ -219,7 +318,7 @@ shreddit-post[is-not-brand-safe]:not(:has(a[href*="apnews.com"])):not(:has(a[hre
 
 Pros: clean semantics ("kill not-brand-safe posts UNLESS they link to a known news outlet"), a stable whitelist of major outlets ages well.
 
-Cons: maintaining the news-domain whitelist is ongoing work, the selector grows linearly with whitelist length, and Hush has no first-class "exception" or "do-not-remove" rule type today. The stacked-AND positive form above is more practical to ship without engine changes.
+Cons: maintaining the news-domain whitelist is ongoing work, the selector grows linearly with whitelist length, and Hush has no first-class "exception" or "do-not-remove" rule type today. The per-subtype positive forms above are more practical to ship without engine changes.
 
 Worth revisiting if Hush grows an exception layer.
 
@@ -231,21 +330,25 @@ For shill content that DOES embed third-party media or affiliate links, network 
 
 ## Verification steps before shipping any rule
 
-1. ~~Capture outerHTML of Sample 2 and diff against Sample 1.~~ Done. See Sample 2 section. Confirmed S1 is too broad as a single-attribute rule.
-2. Capture 5 to 10 MORE samples (mix of suspected shills and known-real posts) to test the stacked-AND rule. For each, record:
-   - `is-not-brand-safe` presence
+1. ~~Capture Sample 2 and diff against Sample 1.~~ Done.
+2. ~~Capture more samples to test stacked-AND.~~ Done at sample size 3. Confirmed two distinct shill subtypes (outrage-shape with `[is-not-brand-safe]`, wholesome-shape without). Single combined rule is no longer the goal; per-subtype rules are.
+3. Capture 5 to 10 MORE samples per subtype to test each rule independently. For each, record:
+   - `is-not-brand-safe` presence (sorts into Subtype A vs Subtype B bucket)
    - `post-type`
-   - `view-context`
+   - `domain`
    - `icon` URL path (default snoovatar vs custom upload)
+   - Subreddit
    - Subjective shill / not-shill judgment
-   The stacked rule is viable if it has high precision on the shill subset (most shills satisfy all four clauses) AND zero or near-zero hits on the real subset.
-3. On a live feed with the stacked rule active, watch for false positives over a full day of typical browsing. Heads up: real users on niche subs who happen to have default snoovatars and post controversial videos to subs the user doesn't subscribe to are the realistic false-positive population. Estimate frequency before ship.
-4. Check whether `is-not-brand-safe` appears on Reddit's own Promoted (paid) posts. If yes, the existing `is-post-commercial-communication` rule already handles them. If no, the stacked rule is targeting a clearly separate population.
-5. If the stacked rule still has unacceptable false-positive rate, escalation paths:
-   - Add S7's icon-path clause as a stricter requirement
-   - Add the inverted whitelist (apnews.com, reuters.com, etc.) as `:not(:has(a[href*="..."]))` exclusions
+   - Title text (for future title-regex rule design - capture the exact string verbatim)
+   Subtype A is viable if precision is high on the outrage-shape subset. Subtype B will likely need title-text matching to be viable; capture title patterns aggressively.
+4. On a live feed with Subtype A rule active, watch for false positives over a full day. Wholesome real content is NOT at risk from Subtype A (it lacks the brand-safety flag). Outrage real content (war, politics, controversy) IS at risk - estimate the rate.
+5. Hold Subtype B rule until Hush grows a text-content matching layer (S3+). Without title-regex support, Subtype B will likely over-remove real wholesome content.
+6. Check whether `is-not-brand-safe` appears on Reddit's own Promoted (paid) posts. If yes, the existing `is-post-commercial-communication` rule already handles them.
+7. Escalation paths if both subtype rules underperform:
+   - Tighten the `domain` clause on Subtype A (e.g. `[domain="v.redd.it"]` to exclude self-posts)
+   - Add the inverted news-domain whitelist as `:not(:has(...))` exclusions on Subtype A
    - Pursue the S6 scoring-pass feature as a multi-signal weighted-sum approach
-   - Extend Hush with a regex-attribute or text-content matching layer (e.g. for title text patterns)
+   - Build the text-matching engine extension - this looks increasingly load-bearing for Subtype B
 
 ## Out of scope for this doc
 
