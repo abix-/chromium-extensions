@@ -46,9 +46,45 @@ Attributes on the `<shreddit-post>` element, deduped to ones potentially useful 
 
 The full outerHTML is not preserved here (large, contains user-specific viewer IDs). Re-capture by inspecting any flagged post if needed.
 
-## Sample 2
+## Sample 2 (captured 2026-04-29) - control case, NOT a shill
 
-Pending. User has reported a second flagged post but the outerHTML has not been captured yet. Sample 2 capture is the next blocking step before any rule can be written.
+Post permalink: `/r/lazerpig/comments/1syyihe/who_is_ready_for_another_hilarious_may_day_parade/`
+
+Why this sample matters: it carries `is-not-brand-safe` (the same flag as Sample 1) but is genuinely legitimate political/military commentary content, not undisclosed shilling. It validates the false-positive risk predicted in S1 and serves as the control for identifying which OTHER attributes discriminate shill from real.
+
+Subjective read: real user, not a shill. Sub-native sarcastic political content for a known niche YouTuber community (`r/lazerpig`), links to mainstream journalism (Associated Press), small organic-feeling engagement.
+
+Attributes on the `<shreddit-post>` element:
+
+| Attribute | Value | Notes |
+|---|---|---|
+| `is-not-brand-safe` | "" (presence-only) | Same as Sample 1. Triggered by political/war content, not by shilling. |
+| `domain` | `self.lazerpig` | Self-post, not external media |
+| `post-type` | `multi_media` | NOT `video` like Sample 1 |
+| `view-context` | `AggregateFeed` | Same as Sample 1 |
+| `subreddit-prefixed-name` | `r/lazerpig` | Niche topical sub (NOT generic-interest like Sample 1) |
+| `author` | `Bionic_Redhead` | Personalized name (does NOT match `Adjective_Noun####`) |
+| `author-id` | `t2_d761nbli` | |
+| `score` | 57 | |
+| `comment-count` | 8 | |
+| `icon` | `https://styles.redditmedia.com/t5_6y9lox/styles/profileIcon_...` | CUSTOM-uploaded profile icon (see S7) |
+| Body content | Self-post linking to `apnews.com` | Real commentary with outbound link to mainstream news |
+
+## Sample 1 vs Sample 2 - what's the same, what differs
+
+| Aspect | Sample 1 (probable shill) | Sample 2 (real, control) |
+|---|---|---|
+| `is-not-brand-safe` | present | present |
+| `view-context` | AggregateFeed | AggregateFeed |
+| `post-type` | video | multi_media |
+| `domain` | v.redd.it | self.lazerpig |
+| Subreddit | r/interestingasfuck (generic, ~13M subs) | r/lazerpig (niche fan sub) |
+| Author username | Awkward_Lunch8016 (auto-suggested format) | Bionic_Redhead (personalized) |
+| Profile icon CDN path | `/snoovatar/avatars/` (default) | `/styles/profileIcon_` (custom upload) |
+| Body | bare media, no text | self-post text plus link to apnews.com |
+| Score / comments | 668 / 147 | 57 / 8 |
+
+The same-vs-different ratio confirms `is-not-brand-safe` cannot work as a single-attribute rule. It must be combined with attributes that fail on Sample 2. The strongest candidates are the post-type, the icon CDN path, and the body's outbound-link pattern.
 
 ## Candidate signals - ranked by durability and false-positive risk
 
@@ -62,18 +98,12 @@ Pros:
 - Composable: combines cleanly with `[post-type]` and `[view-context]` to narrow scope
 
 Cons:
-- Not actually a "shill detector." It is a "won't sell ads against this" tag. False positives include:
-  - NSFW-adjacent content
-  - Gore, violence, or shock content
-  - Politically controversial posts
-  - Some profanity-heavy content
-- Coverage of undisclosed shilling is unverified. Sample 1 has it, Sample 2 unknown.
+- Not actually a "shill detector." It is a "won't sell ads against this" tag. False positives confirmed include:
+  - Politically controversial posts (Sample 2 - confirmed on first non-shill capture, content was sarcastic political commentary about a Russian military parade)
+  - Likely also: NSFW-adjacent content, gore/violence/shock content, profanity-heavy posts (predicted, not yet captured as samples)
+- Single-attribute rule is dead on arrival. The flag fired on Sample 1 (probable shill) AND Sample 2 (real political commentary). Cannot discriminate.
 
-Hypothetical selector:
-
-```
-shreddit-post[is-not-brand-safe][post-type="video"][view-context="AggregateFeed"]
-```
+Status: dead as a single-attribute rule. Useful as ONE clause in a stacked rule (see "Realistic rule shape" section below).
 
 ### S2. Author-name pattern (LOW leverage as CSS, HIGH human-tell value)
 
@@ -138,6 +168,61 @@ Then a CSS rule like `shreddit-post[data-hush-score>="4"]` removes high-confiden
 
 This is a non-trivial extension. Belongs in `roadmap.md` if we decide to pursue.
 
+### S7. Profile icon CDN path (HIGH leverage, LOW risk)
+
+Reddit serves user profile icons from two structurally different paths depending on whether the user has uploaded a custom avatar:
+
+- Default snoovatar (auto-assigned, never customized): `https://preview.redd.it/snoovatar/avatars/<uuid>-headshot.png`
+- Custom-uploaded profile icon: `https://styles.redditmedia.com/t5_<userSubId>/styles/profileIcon_<id>-headshot.png`
+
+The `t5_` prefix on the custom path is the user's own profile-page subreddit ID, where Reddit stores per-user style assets. The path difference reflects internal storage and CDN architecture choices, not user-facing intent - which makes it useful as a signal precisely because it leaks classification info as a side effect.
+
+Sample 1 has the default snoovatar path. Sample 2 has the custom-upload path. CSS-queryable via the `icon` attribute substring match: `[icon*="/snoovatar/avatars/"]` matches default-snoovatar accounts.
+
+Pros:
+- Stable: rooted in Reddit's CDN/storage architecture; not a frontend utility class.
+- Strong correlation with account effort: customizing the profile icon is a small effort tax that bots and farmed accounts almost never pay.
+- Composable: pairs cleanly with S1 to filter custom-avatar accounts (likely real) before applying the not-brand-safe rule.
+
+Cons:
+- Some real users keep the default snoovatar (newer accounts, mobile-only users, those who do not customize their profile). Using this signal alone would over-remove.
+- A sophisticated shill operation could automate snoovatar customization. Whether the cost is worth it to them is an open question.
+
+Hypothetical selector clause: `[icon*="/snoovatar/avatars/"]`. Combine with other clauses, never use alone.
+
+## Realistic rule shape: stacked weak signals
+
+A single strong selector for "this is a shill" does not exist in the DOM. None of the candidate signals above is precise enough alone. The realistic approach is to stack multiple weak selectors with AND:
+
+```
+shreddit-post[is-not-brand-safe][post-type="video"][view-context="AggregateFeed"][icon*="/snoovatar/avatars/"]
+```
+
+What each clause buys:
+
+- `[is-not-brand-safe]` - Reddit's own classifier flagged it advertiser-unsafe (broad, ~50 percent of false-positive shape on its own)
+- `[post-type="video"]` - the format favored by shills in our captured samples (excludes self-posts and link posts that real users tend to favor)
+- `[view-context="AggregateFeed"]` - showing in the home feed via algorithmic insertion, not because the user explicitly subscribed to the sub
+- `[icon*="/snoovatar/avatars/"]` - author has not customized their profile icon (low-effort account signal)
+
+Sample 1 satisfies all four. Sample 2 fails the `[icon*=]` clause cleanly. This composition trades recall (will miss shills that fail any clause - e.g. shills that customize their snoovatar, or shills using image format instead of video) for precision (very few real posts will satisfy all four).
+
+Per-user filter tools are usually well-served by this tradeoff because false positives cause noticeable feed gaps while false negatives just mean "the shill got through, I see it like before." Recall-failure is recoverable; precision-failure erodes trust in the tool.
+
+### Inverted approach: whitelist trust signals
+
+A complementary direction: instead of detecting shill shape, protect posts that contain trust signals. Conceptually:
+
+```
+shreddit-post[is-not-brand-safe]:not(:has(a[href*="apnews.com"])):not(:has(a[href*="reuters.com"])):not(:has(a[href*="bbc.com"]))
+```
+
+Pros: clean semantics ("kill not-brand-safe posts UNLESS they link to a known news outlet"), a stable whitelist of major outlets ages well.
+
+Cons: maintaining the news-domain whitelist is ongoing work, the selector grows linearly with whitelist length, and Hush has no first-class "exception" or "do-not-remove" rule type today. The stacked-AND positive form above is more practical to ship without engine changes.
+
+Worth revisiting if Hush grows an exception layer.
+
 ## Why network blocking does not help (specific to this case)
 
 Sample 1's video is on `v.redd.it`, Reddit's first-party CDN. A `block` rule against `v.redd.it` would break ALL Reddit videos, including legitimate ones. The shill content shares its delivery infrastructure with everything else on the platform. Same logic as why we cannot block `i.redd.it` to stop image spam.
@@ -146,11 +231,21 @@ For shill content that DOES embed third-party media or affiliate links, network 
 
 ## Verification steps before shipping any rule
 
-1. Capture outerHTML of Sample 2. Diff against Sample 1's attributes. Note what is constant and what rotates.
-2. Spot-check 5 to 10 more flagged posts. Record `is-not-brand-safe` presence rate. If above ~70 percent, S1 is viable; if below ~40 percent, S1 is not the right hook.
-3. On a live feed with a hypothetical S1 rule active, watch for false positives over a full day of typical browsing. Heads up: NSFW-adjacent and politics-heavy subs will get hit hard. Decide whether the AggregateFeed clause sufficiently scopes the rule.
-4. Check whether `is-not-brand-safe` appears on Reddit's own promoted posts. If yes, the existing `is-post-commercial-communication` rule already handles them; if no, we know S1 is targeting a separate population.
-5. If S1 fails verification, escalate to the S6 scoring pass design.
+1. ~~Capture outerHTML of Sample 2 and diff against Sample 1.~~ Done. See Sample 2 section. Confirmed S1 is too broad as a single-attribute rule.
+2. Capture 5 to 10 MORE samples (mix of suspected shills and known-real posts) to test the stacked-AND rule. For each, record:
+   - `is-not-brand-safe` presence
+   - `post-type`
+   - `view-context`
+   - `icon` URL path (default snoovatar vs custom upload)
+   - Subjective shill / not-shill judgment
+   The stacked rule is viable if it has high precision on the shill subset (most shills satisfy all four clauses) AND zero or near-zero hits on the real subset.
+3. On a live feed with the stacked rule active, watch for false positives over a full day of typical browsing. Heads up: real users on niche subs who happen to have default snoovatars and post controversial videos to subs the user doesn't subscribe to are the realistic false-positive population. Estimate frequency before ship.
+4. Check whether `is-not-brand-safe` appears on Reddit's own Promoted (paid) posts. If yes, the existing `is-post-commercial-communication` rule already handles them. If no, the stacked rule is targeting a clearly separate population.
+5. If the stacked rule still has unacceptable false-positive rate, escalation paths:
+   - Add S7's icon-path clause as a stricter requirement
+   - Add the inverted whitelist (apnews.com, reuters.com, etc.) as `:not(:has(a[href*="..."]))` exclusions
+   - Pursue the S6 scoring-pass feature as a multi-signal weighted-sum approach
+   - Extend Hush with a regex-attribute or text-content matching layer (e.g. for title text patterns)
 
 ## Out of scope for this doc
 
