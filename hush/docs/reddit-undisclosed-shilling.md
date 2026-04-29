@@ -153,12 +153,13 @@ Pros:
 - Composable: combines cleanly with `[post-type]` and `[view-context]` to narrow scope
 
 Cons:
-- Not actually a "shill detector." It is a "won't sell ads against this" tag. Confirmed behavior across captures:
+- Not actually a "shill detector." It is a "won't sell ads against this" tag. Confirmed behavior across our captures AND across a broader corpus of real-world Reddit DOM samples surfaced via GitHub code search:
   - Fires on Sample 1 (probable outrage-shape shill, video about controversial reaction content)
   - Fires on Sample 2 (real political commentary about a Russian military parade)
-  - Does NOT fire on Sample 3 (probable wholesome-shape shill, reaction to Iron Man product) - because wholesome content is advertiser-friendly
+  - Does NOT fire on Sample 3 (probable wholesome-shape shill, reaction to Iron Man product) - wholesome content is advertiser-friendly
+  - Public corpus also shows the flag firing on: r/wallstreetbets gambling/finance gallery posts, r/BlowJob NSFW link posts, r/worldnews CNBC political news links, r/Funnymemes image memes, r/interestingasfuck viral videos. Broader surface than initially predicted - covers gambling, NSFW, news politics, and edgy viral content as well as the controversy/shock category.
 - Single-attribute rule is dead on arrival in TWO directions: false-positive on Sample 2 (real content tagged), false-negative on Sample 3 (shill content untagged).
-- The flag IS still useful as a SUBTYPE selector: presence implies outrage-shape, absence does not exclude shilling.
+- The flag IS still useful as a SUBTYPE selector: presence implies outrage/edgy/risky-for-ads, absence does not exclude shilling.
 
 Status: dead as a single-attribute rule, also dead as a required keystone clause in any combined rule. Useful only inside per-subtype rules (see "Realistic rule shape" section below) - presence narrows to Subtype A, absence narrows to Subtype B.
 
@@ -177,33 +178,29 @@ Cons:
 
 Decision: skip as a CSS rule. Possible future feature: `author-pattern` rule type with regex support.
 
-### S3. Title text patterns (NOT QUERYABLE in current Hush) - ELEVATED PRIORITY
+### S3. Title text patterns - SUBSTRING WORKS TODAY, REGEX NEEDS EXTENSION
 
 Reaction-bait titles span two recognizable templates:
 
 - **Outrage clickbait** ("It was worth every penny", "I can't believe this", "30 days later", "...changed my life")
 - **Wholesome reaction** ("[Person] excited about their [product]", "[Person]'s reaction to [brand-name item]")
 
-Hush rules are pure CSS selectors. CSS does not have `:contains()` or text-content matching. There is no way to write a title-text rule with the current engine.
+**Correction from prior version of this doc**: an earlier revision claimed title text was "NOT QUERYABLE in current Hush." That was wrong. Reddit exposes the title as the queryable `post-title` attribute on `<shreddit-post>`. CSS attribute substring match works today:
 
-Why this is now ELEVATED from "nice to have" to "near-essential":
+```
+shreddit-post[post-title*="excited about"]
+shreddit-post[post-title*="worth every"]
+shreddit-post[post-title*="changed my life"]
+```
 
-After Sample 3 it is clear that the wholesome-shape shill subtype (Subtype B) cannot be reliably distinguished from real wholesome content using DOM-structural signals alone. Both shapes use:
+This is plain CSS3, supported by `document.querySelector` and therefore by Hush's existing engine. Confirmed by existing uBlock Origin filter lists in the wild that already use this pattern (e.g. `StefanoChiodino/ublock-filter` uses `shreddit-post[post-title*="harris"]` for political content filtering).
 
-- Bare video on `v.redd.it`
-- Default snoovatars (mass user behavior, not just bots)
-- Auto-suggested usernames (also common to real new accounts)
-- Generic feel-good subs (intended audience overlap)
+So the practical story is:
 
-The only stable signal that differs is the title shape. "A man excited about his Iron Man helmet and hand" follows a product-reaction template. "A man excited about his daughter's first steps" does not. CSS cannot tell them apart.
+- **Substring matching: WORKS TODAY in Hush.** Use as a clause in a stacked-AND rule (see Subtype B below).
+- **Regex matching: needs an engine extension.** Patterns like `^[A-Z][a-z]+ excited about (his|her|their)` cannot be expressed in vanilla CSS. Would require either a Hush-side regex layer OR adopting uBlock Origin's `:has-text(/regex/i)` procedural cosmetic filter syntax. See the Prior Art section for the canonical reference.
 
-Required engine extension to make S3 viable:
-
-- A text-content matching rule layer (regex or substring), evaluated in JS, that runs in addition to the CSS selector engine
-- Possible rule format: `{ "value": "shreddit-post", "title-regex": "excited about (his|her|their) [a-z ]+ (helmet|gadget|set|kit)" }`
-- Or a separate `title-block` rule type with its own array
-
-Belongs in `roadmap.md` as a feature proposal. The Subtype B rule below is essentially un-shippable without it.
+For the wholesome-shape Subtype B rule below, substring matching alone catches most observed templates. The regex extension is "nice to have," not "load-bearing" as the prior revision claimed.
 
 ### S4. Outbound link domain (NOT APPLICABLE to Sample 1)
 
@@ -265,6 +262,34 @@ Cons:
 
 Hypothetical selector clause: `[icon*="/snoovatar/avatars/"]`. Combine with other clauses, never use alone.
 
+### S8. Account metadata enrichment (requires JSON fetch, NOT in DOM)
+
+Properties of the post author that are NOT exposed in the post DOM but ARE available via Reddit's anonymous JSON endpoints (`https://www.reddit.com/user/<name>/about.json` - works without OAuth, uses the user's session cookie if logged in for a higher rate limit):
+
+- `created_utc` - account creation timestamp; combined with `Date.now()` gives **account age in days**
+- `link_karma + comment_karma` - **total karma**, which combined with age gives **karma per day rate** (the strongest single-signal account-quality indicator across the detection literature - see Prior Art)
+- `has_verified_email` - email verified flag
+- `subreddit.public_description` - bio text (empty bio is a weak signal)
+- `icon_img` / `snoovatar_img` - alternate path to the same default-vs-custom avatar signal as S7
+
+These cannot be determined from DOM-only inspection. To use them, Hush would need to fetch one JSON endpoint per candidate post author. See the new "DOM-only vs account-enriched" section below for tradeoffs.
+
+Why these matter specifically:
+
+- **Karma per day rate** is the killer signal that separates "shill account that warmed up via engagement farming" from "real new user with the same DOM profile." Without it, Subtype B (wholesome-shape) cannot be reliably distinguished from real new wholesome posters.
+- **Account age** alone catches very-new burner accounts (which the DOM does not surface)
+- **Bio + verified email** are weak corroborating signals - prior art (AstroGuard) scores them at +3 each
+
+Pros:
+- Strong precision improvement on Subtype B
+- One anonymous fetch per candidate author, uses user's session cookie if logged in (rate-limit-friendly)
+- No OAuth or API key required - the `.json` suffix on any Reddit URL has been a free public endpoint since pre-2010
+
+Cons:
+- Network footprint - each fetch tells reddit "I'm interested in this user"
+- Latency - post stays visible for ~100ms while the fetch resolves
+- Hush's current rule shape (`hide` / `remove` / `block` arrays of CSS selectors) has no notion of async-evaluated rules. This is a real (if small) engine extension.
+
 ## Realistic rule shape: per-subtype stacked rules
 
 Three captures in, the data shows there are at least two distinct shill subtypes hitting Reddit, with different platform-classifier behavior. A single combined rule that requires `[is-not-brand-safe]` would miss the wholesome-shape entirely (Sample 3). A single rule that omits `[is-not-brand-safe]` could in principle catch both subtypes but with severely degraded precision on the wholesome shape (overlap with real wholesome content is huge).
@@ -290,7 +315,7 @@ False-positive risk: real outrage content (war, politics, controversy) on defaul
 ### Subtype B: wholesome-shape rule (Sample 3 profile)
 
 ```
-shreddit-post:not([is-not-brand-safe])[post-type="video"][domain="v.redd.it"][icon*="/snoovatar/avatars/"]
+shreddit-post:not([is-not-brand-safe])[post-type="video"][domain="v.redd.it"][icon*="/snoovatar/avatars/"]:is([post-title*="excited about"], [post-title*="reaction to"], [post-title*="worth every"], [post-title*="changed my life"], [post-title*="i tried"], [post-title*="i can't believe"])
 ```
 
 What each clause buys:
@@ -299,14 +324,25 @@ What each clause buys:
 - `[post-type="video"]` - shill format
 - `[domain="v.redd.it"]` - re-hosted on platform CDN
 - `[icon*="/snoovatar/avatars/"]` - default-snoovatar account
+- `:is([post-title*="..."], ...)` - title contains one of the recognized reaction-bait substrings (this is the discriminator that separates wholesome shill from real wholesome content)
 
-False-positive risk: HIGH. Plenty of real users post wholesome videos to feel-good subs from default-snoovatar accounts. Without title-text matching to discriminate "excited about [product]" from "excited about [my kid]", this rule will over-remove real wholesome content.
+The title-substring clause is the key change from earlier revisions of this doc. Substring matching against `post-title` works in vanilla CSS today (see S3) - no engine extension needed for this rule to ship.
+
+False-positive risk on the title-list clauses: bounded. Real titles like "Reaction to my daughter's first steps" will still match `[post-title*="reaction to"]` - a real cost. Mitigations:
+- Keep the title list short and recognizably commercial-template-shaped
+- Tune by adding more clauses or scoping (e.g. `[post-title*="excited about his"]` is narrower than `[post-title*="excited about"]`)
+- Move toward regex once the engine extension lands - patterns like `excited about (his|her|their) [a-z ]+ (helmet|set|gadget|kit|toy)` are sharper
+
+For maximum precision, a Tier-B (account-enriched) version would add karma-per-day filtering on top of the structural+title clauses to exclude real new wholesome posters from established accounts. That depends on the engine extension described in the "DOM-only vs account-enriched" section.
 
 ### Recommended deployment order
 
-1. Ship Subtype A first. Lower false-positive risk because the brand-safety flag is restrictive. Watch for a day, measure FP rate.
-2. HOLD Subtype B until either (a) more samples confirm precision is acceptable, or (b) Hush grows a text-content matching layer that can add a title-regex clause. Without that, B will feel intrusive.
-3. If Subtype A under-performs precision after live testing, add S7's icon-path clause as a stricter requirement (already included), or scope by subreddit.
+1. Ship Subtype A first. Lowest false-positive risk because the brand-safety flag is restrictive. Watch for a day, measure FP rate.
+2. Ship Subtype B with the title-substring clauses as a second wave. Now SHIPPABLE TODAY thanks to the S3 correction. Watch for FPs on real wholesome posters whose titles happen to match the substrings.
+3. If Subtype B FP rate is too high, two paths:
+   - Tighten the title-substring list (narrower phrases, more specific anchoring)
+   - Add Tier-B account-enrichment to filter out real established accounts (requires Hush engine extension for async rules)
+4. If Subtype A under-performs precision, add S7's icon-path clause as a stricter requirement (already included), or scope by subreddit.
 
 ### Inverted approach: whitelist trust signals
 
@@ -322,6 +358,60 @@ Cons: maintaining the news-domain whitelist is ongoing work, the selector grows 
 
 Worth revisiting if Hush grows an exception layer.
 
+## DOM-only vs account-enriched: where the data lives
+
+Architectural decision that affects what we can actually ship. Hush is currently pure-DOM (zero-network, synchronous CSS evaluation). Some signals are only available by fetching the post author's profile JSON. The cleanest model is **filter-first, enrich-only-on-candidates** - never the AstroGuard-style "fetch every author of every visible post" pattern.
+
+### What's queryable in the DOM today
+
+| Signal | DOM source |
+|---|---|
+| Author username pattern | `author` attribute (substring/prefix only - regex needs extension) |
+| Default snoovatar | `icon` attribute substring |
+| Post type, domain, subreddit | direct attributes |
+| `is-not-brand-safe` flag | direct attribute |
+| Title substring | `post-title` attribute (vanilla CSS substring match) |
+| Score, comment count, upvote ratio | attributes |
+| Crosspostable, embeddable, awardable flags | direct attributes |
+
+### What requires a JSON fetch per candidate
+
+| Signal | Why DOM-unavailable |
+|---|---|
+| Account age (`created_utc`) | not exposed on post elements |
+| Total karma | not exposed |
+| Karma per day rate | derived from age + karma, not exposed |
+| Verified email | not exposed |
+| Bio text | only renders on profile pages, not in feed |
+| Comment burst patterns, AI tells, sub diversity | requires comment-history scan (Tier C, out of scope) |
+
+### Architectural tradeoffs
+
+**Tier A - DOM-only** (current Hush):
+- Cost: zero network, synchronous evaluation
+- Privacy: zero leakage - reddit cannot observe what you are filtering
+- Strength: enough for Subtype A (outrage-shape) where `is-not-brand-safe` already restricts the candidate set
+- Weakness: insufficient for Subtype B (wholesome-shape) - structural signals overlap heavily with real new wholesome users
+
+**Tier B - DOM-filter then per-candidate enrichment** (recommended for Subtype B):
+- Cost: 1 anonymous JSON fetch per Subtype-B candidate. After DOM filter narrows ~50 visible posts to 1-3 candidates, this is negligible.
+- Privacy: each fetch tells reddit "I'm interested in this user" - small but real leakage
+- Strength: unlocks karma-per-day, the single best discriminator between shill and real-new-user
+- Engine cost: needs an async rule type that Hush does not have today
+- Auth: anonymous works; user's session cookie automatically bumps rate limit when they're signed in to reddit (which they always will be on reddit.com)
+
+**Tier C - Full per-author scan** (the AstroGuard architecture):
+- Cost: 50+ fetches per page, OAuth flow for rate-limit headroom, optional LLM key
+- Out of scope for Hush. Different product positioning entirely. See Prior Art.
+
+### Recommended deployment
+
+1. Ship Subtype A as DOM-only (Tier A). Cheap, precise enough.
+2. Defer Subtype B until Hush adds candidate-enrichment rule type (Tier B). Without it, ship would over-remove real wholesome content.
+3. Never go Tier C. Scope creep, privacy regression, doesn't fit Hush's positioning as a zero-network filter.
+
+The "scanning every post seems absurd" instinct is correct for Tier C and wrong for Tier B. Tier B's enrichment cost is bounded by how aggressive the DOM filter is at narrowing candidates, and on typical feed pages it is single-digit fetches.
+
 ## Why network blocking does not help (specific to this case)
 
 Sample 1's video is on `v.redd.it`, Reddit's first-party CDN. A `block` rule against `v.redd.it` would break ALL Reddit videos, including legitimate ones. The shill content shares its delivery infrastructure with everything else on the platform. Same logic as why we cannot block `i.redd.it` to stop image spam.
@@ -332,23 +422,26 @@ For shill content that DOES embed third-party media or affiliate links, network 
 
 1. ~~Capture Sample 2 and diff against Sample 1.~~ Done.
 2. ~~Capture more samples to test stacked-AND.~~ Done at sample size 3. Confirmed two distinct shill subtypes (outrage-shape with `[is-not-brand-safe]`, wholesome-shape without). Single combined rule is no longer the goal; per-subtype rules are.
-3. Capture 5 to 10 MORE samples per subtype to test each rule independently. For each, record:
+3. ~~Survey prior art before designing engine extensions.~~ Done. Found AstroGuard (validates S2 + S7), uBlock Origin filter-list patterns (substring on `post-title` works in vanilla CSS today - changes the S3 design entirely), uBO procedural cosmetic filter syntax as canonical regex extension prior art.
+4. Capture 5 to 10 MORE samples per subtype to test each rule independently. For each, record:
    - `is-not-brand-safe` presence (sorts into Subtype A vs Subtype B bucket)
-   - `post-type`
-   - `domain`
+   - `post-type`, `domain`, subreddit
    - `icon` URL path (default snoovatar vs custom upload)
-   - Subreddit
+   - **Title text verbatim** (now actionable - feeds the substring list directly)
    - Subjective shill / not-shill judgment
-   - Title text (for future title-regex rule design - capture the exact string verbatim)
-   Subtype A is viable if precision is high on the outrage-shape subset. Subtype B will likely need title-text matching to be viable; capture title patterns aggressively.
-4. On a live feed with Subtype A rule active, watch for false positives over a full day. Wholesome real content is NOT at risk from Subtype A (it lacks the brand-safety flag). Outrage real content (war, politics, controversy) IS at risk - estimate the rate.
-5. Hold Subtype B rule until Hush grows a text-content matching layer (S3+). Without title-regex support, Subtype B will likely over-remove real wholesome content.
-6. Check whether `is-not-brand-safe` appears on Reddit's own Promoted (paid) posts. If yes, the existing `is-post-commercial-communication` rule already handles them.
-7. Escalation paths if both subtype rules underperform:
-   - Tighten the `domain` clause on Subtype A (e.g. `[domain="v.redd.it"]` to exclude self-posts)
-   - Add the inverted news-domain whitelist as `:not(:has(...))` exclusions on Subtype A
-   - Pursue the S6 scoring-pass feature as a multi-signal weighted-sum approach
-   - Build the text-matching engine extension - this looks increasingly load-bearing for Subtype B
+   Subtype A is viable if precision is high on the outrage-shape subset. Subtype B is viable if the title-substring list captures most observed shill titles without firing on enough real wholesome titles to be intrusive.
+5. On a live feed with Subtype A rule active, watch for false positives over a full day. Wholesome real content is NOT at risk from Subtype A (it lacks the brand-safety flag). Outrage real content (war, politics, controversy) IS at risk - estimate the rate.
+6. On a live feed with Subtype B rule active, watch FP rate especially on titles that contain matching substrings but are legitimate ("Reaction to my daughter's first steps" matches `[post-title*="reaction to"]`). Tune the substring list narrower if needed.
+7. Check whether `is-not-brand-safe` appears on Reddit's own Promoted (paid) posts. If yes, the existing `is-post-commercial-communication` rule already handles them.
+8. Validate prior-art findings as new samples come in:
+   - Does `is-promoted-user-post="true"` appear on any of our captured shills? (Per `neramc`'s filter, this is a real attribute we have not yet observed.)
+   - Do our captured authors' usernames match AstroGuard's regex set?
+9. Escalation paths if rules underperform:
+   - Tighten Subtype A's `domain` clause (e.g. `[domain^="v.redd.it"]` to be strict about platform-CDN re-hosts)
+   - Add inverted news-domain whitelist as `:not(:has(...))` exclusions on Subtype A
+   - Add Tier-B account enrichment for Subtype B (requires Hush async-rule engine extension - see "DOM-only vs account-enriched")
+   - Adopt uBO's `:has-text(/regex/i)` for sharper title patterns (engine extension)
+   - Pursue S6 scoring-pass for multi-signal weighted-sum approach
 
 ## Out of scope for this doc
 
@@ -357,8 +450,51 @@ For shill content that DOES embed third-party media or affiliate links, network 
 - Cross-session pattern learning (would need persistent storage of post fingerprints)
 - Old Reddit (`old.reddit.com`) - separate DOM, not investigated here
 
+## Prior art
+
+Survey of related work, found via GitHub repo + code search and academic literature search. Saves future-us from re-running this research.
+
+### Active browser-extension projects
+
+- **[zoh-f/HooHacks2026](https://github.com/zoh-f/HooHacks2026)** ("AstroGuard") - single-day hackathon project (March 21-22 2026), Chrome MV3 extension. Different threat model from Hush: scores USERS not POSTS via Reddit JSON endpoints + Gemini LLM. Operates per-comment-author across the full feed (Tier C in our architecture taxonomy).
+  - Validates our S2 finding: their `^[A-Za-z]+_[A-Za-z]+\d{2,}$` regex matches both `Awkward_Lunch8016` and `FewCollar227` and scores +6 in their system.
+  - Validates our S7 finding: detects default avatars via substring match on `icon_img` (`default` / `snoo_default`) - same logic against the API field instead of the DOM attribute.
+  - Useful borrowable assets: 25-entry "skip known bots" allowlist (`automoderator`, `autotldr`, `remindmebot`, etc.), 26-entry generic-phrase list ("this is the way", "based", etc.), 40+ AI-tell phrase list ("delve", "tapestry", "it's worth noting", etc.).
+  - Architectural mismatch with Hush: requires Reddit OAuth + Gemini API key (both free tiers, but registration friction), hits 100+ requests per page on busy threads, scope way beyond per-post structural filtering.
+- **[rxliuli/clean-reddit](https://github.com/rxliuli/clean-reddit)** - actively maintained Reddit cleanup tool, plugin-based architecture (avatar-menu / content / left / right / top). 2 stars at time of writing. Closest direct competitor to Hush's reddit case study.
+- **[mrityunjai01/reddit-astroturf](https://github.com/mrityunjai01/reddit-astroturf)** (2025) - Python + Jupyter notebook, server-side ML classifier. Different layer entirely (offline analysis, not browser filter). Possible feature-engineering reference.
+- **[your-majisty174/reddit-astroturf-detector](https://github.com/your-majisty174/reddit-astroturf-detector)** (2025) - detection project, limited public info beyond the repo description.
+
+### Curated blocklists
+
+- **[sockpuppetaccounts/reddit](https://github.com/sockpuppetaccounts/reddit)** - 200+ known shill/sock-puppet usernames in `spammers.txt`. **None of our three captured authors appear in this list**, validating that public username blocklists alone are insufficient (account farms churn faster than community curation can keep up).
+
+### uBlock Origin filter-list patterns (highest signal-to-noise prior art)
+
+The community has been writing reddit filter rules for years. Key patterns observed:
+
+- **`shreddit-post[post-title*="..."]`** for substring title matching - vanilla CSS, works in any selector engine. Used by `StefanoChiodino/ublock-filter` for political-name filtering. **This is the pattern that makes our Subtype B rule shippable today without an engine extension.**
+- **`shreddit-post:has-text(/regex/i)`** for regex title matching - uBO procedural cosmetic filter, NOT vanilla CSS. Used in `maus-me/ublock-list` and `SkunkShow/ublock-personal-blocklist`.
+- **`:matches-attr(...)`** for regex attribute matching - uBO procedural. Used in `Stevoisiak/Stevos-GenAI-Blocklist` for regex sub-name matching.
+- **`shreddit-post:is([score="0"], [score="1"], ..., [score="9"])`** score-range filtering - vanilla CSS. Used in `DandelionSprout/adfilt` to remove low-quality posts.
+- **`[permalink*="..."]`** slug matching as topic proxy. Used in `dashingdon/blocklists`.
+- **`shreddit-post[is-promoted-user-post="true"]`** - another reddit attribute we had not captured ourselves; used in `neramc`'s filter. Worth checking on future captures.
+
+### uBlock Origin procedural filter syntax (canonical engine extension prior art)
+
+If Hush adds a regex/text matching layer beyond plain CSS, [gorhill/uBlock - Procedural cosmetic filters wiki](https://github.com/gorhill/uBlock/wiki/Procedural-cosmetic-filters) is the proven prior art. Operators include `:has-text(...)`, `:matches-attr(...)`, `:matches-css(...)`, `:upward(N)`, `:nth-of-class()`, plus chaining. **Adopting this dialect (rather than inventing a parallel one) lets the existing filter-list corpus become directly portable into Hush.** Belongs in `roadmap.md` if/when the regex extension is greenlit.
+
+### Academic literature
+
+- **[Chen et al 2021 survey, Hindawi](https://www.hindawi.com/journals/scn/2021/3294610/)** - astroturf detection broadly. Chen 2013's earlier work hit 88.79 percent accuracy on astroturfers using semantic + non-semantic features in a random-forest classifier.
+- **[Nature 2022 - Coordination patterns reveal political astroturfing across the world](https://www.nature.com/articles/s41598-022-08404-9)** - argues coordinated-group detection outperforms individual-account ML classifiers. Implication: post-level filtering has a recall ceiling; campaign-level analysis would be a complementary higher tier (out of scope for Hush).
+
+### Commercial
+
+- **[Subsignal.ai - Reddit Shill Detection](https://www.subsignal.ai/features/reddit-shill-detection)** - server-side commercial product. Existence proof for the demand, possibly a benchmark.
+
 ## References
 
 - `docs/reddit.md` - shipped rules for disclosed commercial content
 - `sites.json` - current rule config; the `reddit.com` entry is the integration point
-- `docs/architecture.md` - rule shape and selector engine constraints (CSS only, no `:contains()`)
+- `docs/architecture.md` - rule shape and selector engine constraints (vanilla CSS today, regex extension would adopt uBO procedural syntax per Prior Art)
