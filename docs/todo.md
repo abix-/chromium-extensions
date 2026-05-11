@@ -210,12 +210,12 @@ kinds).
 Import/export code shipped sessions ago; no seed content to
 import. Author `hush/profiles/`:
 
-- `brave-supplement.json` — the whole point of the Brave-stack
+- `brave-supplement.json`. The whole point of the Brave-stack
   positioning. Site-specific Remove/Hide + first-party telemetry
   blocks + Neuter rules for bundled session-replay libraries.
-- `news-site-baseline.json` — first-party telemetry beacons,
+- `news-site-baseline.json`. First-party telemetry beacons,
   social-widget iframes, cookie-banner overlays.
-- `social-media-declutter.json` — Reddit promoted-post removes,
+- `social-media-declutter.json`. Reddit promoted-post removes,
   Twitter/X trending hides.
 
 ### Run the Criterion bench, commit baseline
@@ -231,7 +231,7 @@ detector additions on no-regression.
 Stated budget in `hush/docs/roadmap.md`. Never verified. WASM
 bundle is 1.5 MB. DevTools Performance → Record → click
 extension icon → stop. If over budget, profile the slow path
-(likely Leptos mount + async-fetch waterfall — which evaporates
+(likely Leptos mount + async-fetch waterfall. Which evaporates
 when P0 #1 lands).
 
 ## P2 - polish + coverage
@@ -351,7 +351,7 @@ rust-version = "1.95"
 ```
 
 Distro stable Rust trails by ~1 year. A 10-year codebase uses
-a conservative MSRV actually needed by deps. Reality-check —
+a conservative MSRV actually needed by deps. Reality-check.
 probably `rust-version = "1.80"` and `edition = "2021"` work
 fine.
 
@@ -380,7 +380,7 @@ it lands, instead of silent attribution failures accumulating.
 ```
 
 Seams exist. Readability compound interest over 10 years. Do
-this after P0 #1 (Leptos rip) — most of `ui_*.rs` will shrink
+this after P0 #1 (Leptos rip). Most of `ui_*.rs` will shrink
 massively during that work anyway.
 
 ### Zoom-extension headless regression test
@@ -418,7 +418,7 @@ Remaining (needs jsdom harness):
 
 ### Security smoke for hush spoof / neuter / silence
 
-These actions rewrite live site behavior — fake fetch responses,
+These actions rewrite live site behavior. Fake fetch responses,
 deny listener registrations, constant fingerprint returns. One
 bug breaks sites silently. Load 5-10 popular sites with each
 action active; record expected breakage in
@@ -431,7 +431,7 @@ replacing the 1 Hz poll, rename-gate comment on content.css).
 Policy section on the file describes the per-change entry
 convention going forward.
 
-## P3 — nice-to-have
+## P3. Nice-to-have
 
 ### Structured logging + request IDs
 
@@ -476,17 +476,17 @@ today.
 
 ## Out of scope
 
-- **Cargo workspace** — wait until a second Rust extension
+- **Cargo workspace**. Wait until a second Rust extension
   actually shares code.
-- **Shared `crates/` directory** — same.
-- **Chrome Web Store submission** — all three need privacy
+- **Shared `crates/` directory**. Same.
+- **Chrome Web Store submission**. All three need privacy
   policies, screenshots, and stable release cadences first.
 
 ## Grade tracking
 
 | Review date | Grade | Delta | Notes |
 |---|---|---|---|
-| [2026-04](review-2026-04.md) | 6.5/10 | -- | first-pass review, docs + spot-check |
+| [2026-04](review-2026-04.md) | 6.5/10 |. | first-pass review, docs + spot-check |
 | 2026-04-21 deep audit | 5.5/10 | -1.0 | code-level second pass; localhost POST + `content.rs` phantom + attribution bug were missed first time |
 | 2026-04-21 P0 session | 7.0/10 | +1.5 | shipped: localhost POST removed, stack substring bug fixed (+ regression lock), guarded unwrap fixed, silent-error audit on startup + storage-changed paths, version-drift roadmap item deleted, filter-anything-everywhere CHANGELOG seeded, CI workflow landed. Remaining P0: Leptos rip (deferred), content.js -> Rust port (deferred). |
 | 2026-04-21 P1 cross-lang stack contract test | 7.1/10 | +0.1 | shipped: shared `stack_fixtures.json` consumed by Rust `fixture_cases_match_expected` and JS `stack_origin.test.mjs`, both run in CI. Future drift between the two copies surfaces as a failing test. |
