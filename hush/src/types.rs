@@ -27,7 +27,7 @@ pub enum SuggestionLayer {
     /// Main-world action: deny capture-surface API registrations
     /// (addEventListener for interaction events) from matching
     /// script origins. Used by the replay-listener detector since
-    /// listener density is an upstream signal — neutering the
+    /// listener density is an upstream signal. Neutering the
     /// registration is more useful than blocking the URL.
     Neuter,
     /// Main-world action: short-circuit outbound fetch/XHR/beacon
@@ -126,7 +126,7 @@ pub struct BuildSuggestionInput {
     pub existing_remove: Arc<[String]>,
     #[serde(rename = "existingHide", default)]
     pub existing_hide: Arc<[String]>,
-    /// Canonical signal kind for the suggestion — same tag the
+    /// Canonical signal kind for the suggestion. Same tag the
     /// `learn` text was keyed on. Carried through to the
     /// resulting rule as an `auto:<kind>` tag when the user
     /// accepts the suggestion.
@@ -361,7 +361,7 @@ pub struct Allowlist {
 ///
 /// `rule_id` derivation still uses `(action, scope, value)` so
 /// reorders, disable-toggles, and tag edits don't change identity
-/// — the firewall log's aggregation survives those edits.
+///. The firewall log's aggregation survives those edits.
 ///
 /// Serialization elides every field except `value` by default so
 /// the on-disk JSON stays `{"value": "..."}` for a plain rule.
@@ -391,7 +391,7 @@ impl RuleEntry {
     /// Build a rule from an accepted suggestion. Stamps the
     /// originating detector's signal kind into `tags` as
     /// `auto:<kind>` so the firewall log can filter by detector
-    /// origin. Empty `kind` produces a plain rule with no tag —
+    /// origin. Empty `kind` produces a plain rule with no tag.
     /// used when the rule wasn't sourced from a suggestion
     /// (manual options-editor entry, JSON paste, etc).
     pub fn from_accepted_suggestion(value: impl Into<String>, kind: &str) -> Self {
@@ -436,7 +436,7 @@ pub struct SiteConfig {
     /// script origins. Each entry's `value` is a host-anchor
     /// pattern (the `||host^` subset of uBlock syntax, plus `*`
     /// wildcards and bare substring) matched against the caller's
-    /// stack-origin host. Not full uBlock URL-filter grammar --
+    /// stack-origin host. Not full uBlock URL-filter grammar.
     /// mainworld only has the script's host, not the URL. See
     /// `mainworld.js::matchesHostPattern` for the exact syntax.
     /// Runs at document_start before any page script; legitimate
