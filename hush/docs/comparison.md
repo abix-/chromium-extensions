@@ -30,7 +30,7 @@ site-specific and behavioral that the lists miss.
 | uBlock Origin Lite / uBO | Curated filter lists (EasyList, EasyPrivacy) | Quality + size of the community lists |
 | AdBlock / AdBlock Plus | Curated lists (with optional "Acceptable Ads") | Same lists, different policies |
 | Ghostery | Curated tracker database + cosmetic filters | Ghostery's tracker DB + WhoTracks.me |
-| Privacy Badger | **Behavioral** — observes trackers across every site you visit, auto-blocks after 3+ appearances | Your own browsing time |
+| Privacy Badger | **Behavioral**. Observes trackers across every site you visit, auto-blocks after 3+ appearances | Your own browsing time |
 | Brave Shields | Filter lists + **browser-level** API randomization (canvas/audio farbling, font enumeration limits) | Browser integration (not an extension) |
 | DuckDuckGo Privacy Essentials | DDG's Tracker Radar dataset + HTTPS upgrade | DDG's research team |
 | NoScript | **Default-deny JavaScript**, whitelisted per-origin | Explicit user whitelist |
@@ -60,7 +60,7 @@ Actively maintained.
   cosmetic rules.
 - Fingerprint API reads (`UNMASKED_RENDERER_WEBGL`,
   `OfflineAudioContext`, `measureText`) aren't network traffic at
-  all — filter lists can't see them.
+  all. Filter lists can't see them.
 - Session-replay detection is list-based: block the vendor
   domain. Works for scripts loaded from `hotjar.com`, fails for
   bundled first-party replay libraries.
@@ -68,13 +68,13 @@ Actively maintained.
 **Overlap with Hush**: network blocking (Hush's Block action
 targets the same layer via DNR). If you already have uBO running,
 Hush's Block rules are mostly redundant for generic ad/tracker
-patterns — the value is in the per-site Remove/Hide/Spoof/Neuter
+patterns. The value is in the per-site Remove/Hide/Spoof/Neuter
 rules.
 
 ### AdBlock / AdBlock Plus
 
 **Model**: same filter-list engine pattern as uBO. AdBlock Plus
-maintains the "Acceptable Ads" allowlist, which is a paid program —
+maintains the "Acceptable Ads" allowlist, which is a paid program.
 advertisers pay to have their ads allowlisted if they meet style
 guidelines. Opt-out in settings.
 
@@ -90,7 +90,7 @@ doesn't specifically want the AB brand.
 
 **Model**: curated tracker database (Ghostery maintains their own
 classification, powered by the WhoTracks.me dataset) plus cosmetic
-filters. UI focuses on "who tracked you" — per-page breakdown by
+filters. UI focuses on "who tracked you". Per-page breakdown by
 tracker company.
 
 **Strengths**: excellent transparency UI. The "what trackers are
@@ -117,7 +117,7 @@ learning algorithm is the main thing no other tool does.
 First visit to a site, new trackers pass through. Doesn't see
 first-party telemetry (same-host as the site you're visiting).
 
-**Overlap with Hush**: partial — both watch live behavior. But:
+**Overlap with Hush**: partial. Both watch live behavior. But:
 
 - Privacy Badger watches **across sites** ("did I see this domain
   elsewhere?"). Hush's detector is **per-tab** ("is this page
@@ -169,7 +169,7 @@ of this writing):
 - **CNAME cloaking unmasking**: resolves CNAME records and
   checks both the original and resolved domain against filter
   lists. Brave was the **first browser** to ship this (1.17.73,
-  Oct 2020). MV3 extensions cannot replicate — no DNS API.
+  Oct 2020). MV3 extensions cannot replicate. No DNS API.
 - **Third-party storage partitioning** + **ephemeral storage**:
   third-party iframes can't read persistent IDs across sites;
   storage clears when the last tab for a site closes.
@@ -177,7 +177,7 @@ of this writing):
   (utm_*, gclid, fbclid, msclkid, etc.) from URLs globally via
   a curated list.
 - **Debouncing**: recognizes a curated list of
-  click-redirector domains and skips them entirely — navigates
+  click-redirector domains and skips them entirely. Navigates
   directly to the final URL instead of bouncing through the
   tracker. Shipped in 1.32 (Oct 2021).
 - **Referrer rewriting**: trims or removes the Referer header
@@ -202,7 +202,7 @@ of this writing):
 - **Auto Shred**: automatic site data clearing on configurable
   schedule.
 
-**Farbling vs Hush's spoof — different goals**:
+**Farbling vs Hush's spoof. Different goals**:
 
 | | Brave farbling | Hush spoof |
 |---|---|---|
@@ -228,7 +228,7 @@ Brave stack" section below.
 **Model**: default-deny all JavaScript, then whitelist per-origin.
 High-security model from the Firefox era.
 
-**Strengths**: ultimate defense against client-side tracking — if
+**Strengths**: ultimate defense against client-side tracking. If
 no script runs, no fingerprint is computed and no tracker fires.
 
 **Weaknesses**: modern web is unusable without JS on ~everything.
@@ -295,7 +295,7 @@ actions do, only better (browser layer, farbling, DNS-level CNAME
 unmasking). A Brave user shouldn't expect Hush to add value in
 those lanes. What **does** Hush add on top of Shields:
 
-**Unique to Hush — not covered by Shields at any mode**:
+**Unique to Hush. Not covered by Shields at any mode**:
 
 1. **Site-specific surgical DOM cleanup** (Remove, Hide). Shields
    has cosmetic filters from EasyList but can't target custom
@@ -307,7 +307,7 @@ those lanes. What **does** Hush add on top of Shields:
    (small responses, beacon types, same-host as tab).
 3. **Session-replay listener density check**. Catches
    **bundled** first-party replay libraries that don't ship from
-   `hotjar.com` — the Neuter action denies
+   `hotjar.com`. The Neuter action denies
    `addEventListener('mousemove' | 'keydown' | …)` at
    document_start.
 4. **Evidence log of what tried to fingerprint you**. Brave
@@ -318,13 +318,13 @@ those lanes. What **does** Hush add on top of Shields:
 5. **Per-site rule-authoring UI** for any of the above, with
    live suggestions tied to evidence.
 
-**Complementary to Shields — per-site overrides on top of
+**Complementary to Shields. Per-site overrides on top of
 Brave's global decisions**:
 
 6. **`strip` action** (planned): Brave's curated param-strip
    list is global. Hush's per-site strip lets you remove
    site-specific tracking params Brave's list doesn't know
-   about — without turning off Brave's global strip.
+   about. Without turning off Brave's global strip.
 7. **`referrer` action** (planned): Brave's Referer rewriting
    is policy-level. Hush can pin a Referer to a specific value
    on a specific scope (useful for paywalled sites that gate on
@@ -347,8 +347,8 @@ Brave's global decisions**:
   (Bluetooth/USB/HID/Serial/Web Share). Brave limits some but
   doesn't detect/report probes.
 - Tier 3 navigator-property fingerprint **detection** (not
-  spoofing — Brave farbles it). Transparency value.
-- `replace` action — substitute matched scripts with no-op
+  spoofing. Brave farbles it). Transparency value.
+- `replace` action. Substitute matched scripts with no-op
   stubs. Brave already does this for GA4 / Meta Pixel; Hush
   would cover site-specific cases.
 
@@ -395,7 +395,7 @@ visibility in the comparison context:
   Badger already does it well.
 - **API randomization** (Brave's farbling approach). Requires
   deeper browser integration than an MV3 extension can replicate.
-  Hush's spoof action is the extension-sized version — replaces
+  Hush's spoof action is the extension-sized version. Replaces
   entropy signals with constants rather than per-session noise.
 - **Cookie banner auto-dismissal** (I Don't Care About Cookies,
   Cookiecrumbler). Different problem domain; possible companion
@@ -410,7 +410,7 @@ visibility in the comparison context:
 The gap public blocklists leave is **per-site behavioral detail**.
 A site's custom elements, its first-party telemetry subdomains,
 its specific session-replay listener pattern, its fingerprint API
-reads — these don't generalize across millions of users, so
+reads. These don't generalize across millions of users, so
 curated lists don't have them. An extension that **observes live
 behavior and proposes rules the user accepts** fills that gap
 without duplicating what the lists already cover.
