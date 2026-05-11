@@ -591,7 +591,7 @@ fn FooterButtons(tab_id: Option<i32>, tab_url: String, hostname: String) -> impl
     }
 }
 
-/// Firewall log — unified per-rule view. Enumerates every rule in
+/// Firewall log. Unified per-rule view. Enumerates every rule in
 /// the tab's active policy (global + site-scoped), joins in any
 /// matching [`FirewallEvent`]s to show hit counts + most-recent
 /// evidence, and renders one row per rule. Firewall-flavored:
@@ -612,7 +612,7 @@ fn FirewallLog(
     use std::collections::HashMap;
     use std::sync::Arc;
 
-    // Filter state — independent signals so each control can
+    // Filter state. Independent signals so each control can
     // re-render only its own part of the tree. Default to "This tab"
     // when there's a current tab to scope to; degrade to "All tabs"
     // when the popup is opened on a chrome:// page or similar where
@@ -651,7 +651,7 @@ fn FirewallLog(
         // reserved `__global__` key. Upstream, PopupSnapshot loads
         // `site_rules` from `config[matched_domain]`, which for a
         // page with only global rules resolves to the SAME
-        // SiteConfig — enumerating twice would produce duplicate
+        // SiteConfig. Enumerating twice would produce duplicate
         // log rows (one "BLOCK global ||x" row per duplicate).
         if !site_scope.is_empty() && site_scope.as_str() != GLOBAL_SCOPE_KEY {
             ingest(&site_scope, &site_rules);
@@ -660,7 +660,7 @@ fn FirewallLog(
     };
     let rule_tags = Arc::new(rule_tags);
 
-    // Distinct tag set across every authored rule — drives the
+    // Distinct tag set across every authored rule. Drives the
     // filter-chip row. Sorted so chips render deterministically.
     let distinct_tags: Vec<String> = {
         let mut set: std::collections::BTreeSet<String> = std::collections::BTreeSet::new();
@@ -767,7 +767,7 @@ fn FirewallLog(
 
             // Enumerate every configured rule across global + site
             // scopes. An action filter hides whole rule rows whose
-            // action doesn't match — makes the "all rules with 0 hits"
+            // action doesn't match. Makes the "all rules with 0 hits"
             // noise go away when the user wants to see only blocks.
             //
             // All allow rules across both scopes are collected up-front
@@ -811,7 +811,7 @@ fn FirewallLog(
                     // count of 0 on current-tab stats means the CSS
                     // selector didn't match any element on the page;
                     // show "no DOM match" to surface typos or stale
-                    // selectors. Only checked in This-tab view —
+                    // selectors. Only checked in This-tab view.
                     // All-tabs would produce false positives for a
                     // selector that matches on some other tab.
                     let zero_match = if !all_tabs {
@@ -851,7 +851,7 @@ fn FirewallLog(
                 }
             };
             emit_rows(&mut rows, GLOBAL_SCOPE_KEY, &global_rules_rc);
-            // Same dedup guard as in the rule_tags ingest above —
+            // Same dedup guard as in the rule_tags ingest above.
             // when matched_domain is `__global__` the upstream
             // site_rules alias-points at the global config, so
             // enumerating a second time would produce duplicate
@@ -860,7 +860,7 @@ fn FirewallLog(
                 emit_rows(&mut rows, &site_scope_rc, &site_rules_rc);
             }
 
-            // Orphan rows — events whose rule is no longer in the
+            // Orphan rows. Events whose rule is no longer in the
             // config. Survive the action filter because the loop
             // already dropped non-matching events above.
             let configured_ids: std::collections::HashSet<String> =
@@ -2149,7 +2149,7 @@ where
     // doesn't fire the same message twice.
     let busy = RwSignal::new(false);
 
-    // Shared accept closure factory — one call site, parameterised
+    // Shared accept closure factory. One call site, parameterised
     // by scope. Lands the rule under either the tab's site or the
     // reserved `__global__` entry. After the write succeeds, reload
     // the tab so the new rule actually takes effect: DNR rules only
