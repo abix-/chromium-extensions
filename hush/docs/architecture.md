@@ -1,7 +1,7 @@
-# Hush architecture — firewall-style rule engine for Chrome
+# Hush architecture. Firewall-style rule engine for Chrome
 
 Hush is **modeled after a software firewall**. It isn't one at the OS
-level — it doesn't gate packets and it lives entirely inside the
+level. It doesn't gate packets and it lives entirely inside the
 browser process. But the mental model it borrows from enterprise
 network firewalls is the right one for what it does: every request,
 element, and fingerprint probe a page makes is checked against
@@ -14,7 +14,7 @@ and it's the model every future feature should be designed against.
 Every website you load is running code that is not on your side.
 
 - Ad networks, analytics vendors, and session-replay companies embed
-  scripts that exfiltrate what you do on the page — mouse movements,
+  scripts that exfiltrate what you do on the page. Mouse movements,
   scroll timing, keystrokes, which elements you hovered.
 - First-party "telemetry" pipelines (sites' own `collector.*`,
   `w3-reporting.*`, `unagi.*` subdomains) fire `sendBeacon` events
@@ -22,7 +22,7 @@ Every website you load is running code that is not on your side.
   because public lists target cross-site trackers, not first-party
   subdomains. Hush's mandate is to close exactly that gap.
 - Fingerprinting scripts read GPU model, canvas pixel signatures,
-  installed-font lists, WebGL parameters — combining three or four
+  installed-font lists, WebGL parameters. Combining three or four
   of those uniquely identifies 90%+ of browser sessions regardless
   of cookies, incognito, or VPN.
 - Heavy UI elements (sticky promos, hidden iframes, background
@@ -54,12 +54,12 @@ Rules also carry optional metadata used by the log and the editor:
 
 ### Actions (what a rule does)
 
-1. **Block (network)** — registered with
+1. **Block (network)**. Registered with
    `chrome.declarativeNetRequest`. Matching requests are rejected
    before DNS resolution, TCP connection, or TLS handshake. The
    initiating `fetch()` or iframe load fails locally with
    `net::ERR_BLOCKED_BY_CLIENT`. No bytes reach the network.
-2. **Allow (exception)** — the counter-rule to Block. Matching
+2. **Allow (exception)**. The counter-rule to Block. Matching
    requests pass through even if a broader Block rule would cover
    them. DNR handles the override by giving Allow rules a higher
    `priority` than Block rules so DNR's own first-match-wins
@@ -67,48 +67,48 @@ Rules also carry optional metadata used by the log and the editor:
    selector exclusion: nodes matching an Allow selector are skipped
    by the content-script applier. This is the primitive that lets a
    user write "globally block `||doubleclick.net`, but allow
-   `doubleclick.net/adx/` on this one site" — impossible in earlier
+   `doubleclick.net/adx/` on this one site". Impossible in earlier
    versions.
-3. **Neuter (script capture)** — script-origin URL filters
+3. **Neuter (script capture)**. Script-origin URL filters
    matched against the initiating-script stack host. At
    document_start, main-world wraps
    `EventTarget.prototype.addEventListener` to deny
    interaction-event registrations from matching origins.
-   Listeners that don't register never fire — no CPU burn per
+   Listeners that don't register never fire. No CPU burn per
    keystroke, no capture, no exfil. Upstream defense for
    session-replay vendors.
-4. **Silence (script exfil)** — script-origin URL filters,
+4. **Silence (script exfil)**. Script-origin URL filters,
    enforcement in main-world. Intercepts outbound `fetch` /
    `XMLHttpRequest.send` / `navigator.sendBeacon` calls whose
    caller stack origin matches, and fake-succeeds them (204 No
    Content / XHR state-4 status-204 / beacon-true). Fallback for
    bundled first-party replay where Neuter can't match by origin
    without false-positives.
-5. **Remove (DOM)** — CSS selectors whose matching elements are
+5. **Remove (DOM)**. CSS selectors whose matching elements are
    physically deleted via `element.remove()`. A `MutationObserver`
    re-applies on every DOM mutation so SPA routers and infinite-scroll
    insertions can't sneak the element back in.
-6. **Hide (CSS)** — CSS selectors applied with
+6. **Hide (CSS)**. CSS selectors applied with
    `display: none !important` via a user stylesheet injected at
    `document_start`. The element stays in the DOM; it doesn't
    render. Mildest action.
-7. **Spoof (fingerprint)** — kind tags that swap the real value
+7. **Spoof (fingerprint)**. Kind tags that swap the real value
    returned by a fingerprinting API for a bland
    identical-across-users default. Supported kinds:
-     - `webgl-unmasked` — WebGL `UNMASKED_VENDOR_WEBGL` /
+     - `webgl-unmasked`. WebGL `UNMASKED_VENDOR_WEBGL` /
        `UNMASKED_RENDERER_WEBGL` return `"Google Inc."` /
        `"ANGLE (Generic)"` instead of the real GPU identity.
-     - `canvas` — `HTMLCanvasElement.toDataURL` / `toBlob` return
+     - `canvas`. `HTMLCanvasElement.toDataURL` / `toBlob` return
        a constant 1x1 PNG; `CanvasRenderingContext2D.getImageData`
        returns a zero-initialized `ImageData` of the requested
        dimensions. Kills the subpixel-rendering fingerprint at
-       the cost of breaking legitimate canvas rendering — opt-in
+       the cost of breaking legitimate canvas rendering. Opt-in
        per site.
-     - `audio` — `OfflineAudioContext.startRendering` resolves to
+     - `audio`. `OfflineAudioContext.startRendering` resolves to
        a silent `AudioBuffer` matching the context's channels,
        length, and sampleRate. Kills the audio-rendering
        divergence fingerprint.
-     - `font-enum` — `measureText` returns a synthetic metrics
+     - `font-enum`. `measureText` returns a synthetic metrics
        object whose `width` depends only on text length, not
        font. Collapses cross-font width probing to one invariant
        value.
@@ -128,7 +128,7 @@ reorder, delete. Users read top-to-bottom to understand what will
 fire. Filters above the table let the reader narrow by scope,
 action, or substring. Under the covers the store is still
 `Config = IndexMap<scope, SiteConfig>` with seven
-`Vec<RuleEntry>` fields per scope — the table is a projection
+`Vec<RuleEntry>` fields per scope. The table is a projection
 and writes are routed to the matching `(scope, action)` bucket.
 
 ### Evaluation order
@@ -145,18 +145,18 @@ the content-script applier walks rules in order and excludes
 nodes matched by an Allow selector from the subsequent
 Remove/Hide passes.
 
-Actions are otherwise orthogonal — Block gates the network,
-Remove touches the DOM, Spoof touches fingerprint APIs — so
+Actions are otherwise orthogonal. Block gates the network,
+Remove touches the DOM, Spoof touches fingerprint APIs. So
 there is no cross-action ordering beyond the Allow/Block override.
 
 ### Scopes (where a rule applies)
 
-- **Site-scoped** (current default) — the rule lives under a site
+- **Site-scoped** (current default). The rule lives under a site
   config key (e.g. `reddit.com`) and evaluates on any tab whose
   hostname exactly matches or is a suffix of that key. A rule
   under `reddit.com` also applies on `www.reddit.com`,
   `sh.reddit.com`, and `old.reddit.com`.
-- **Global** (planned, not yet shipped) — the rule evaluates on
+- **Global** (planned, not yet shipped). The rule evaluates on
   every tab. Useful for blanket bans on known-bad ad-network
   hosts or session-replay vendors the user always wants killed.
   Tracked as a separate stage in [roadmap.md](roadmap.md).
@@ -195,7 +195,7 @@ list.
 | Spoof | `FirewallEvent` | `None` (one event per kind per page) | shipped |
 
 `rule_id` is derived as `"{action}::{scope}::{match}"` (see
-`src/types.rs::rule_id`) — the same format as suggestion keys, so
+`src/types.rs::rule_id`). The same format as suggestion keys, so
 an accepted suggestion's key matches the resulting rule's ID in
 the log. `tags` are copied from the matching `RuleEntry` at emit
 time so the log can be filtered by category (e.g. all
@@ -212,7 +212,7 @@ objects, capped at 10k entries (≈2MB, well under the 10MB quota).
 Every event carries `tabId` so the popup can pivot between
 "This tab" and "All tabs" views. The session-storage backing
 means the log survives popup close and tab reload but is
-cleared when the browser restarts — aligning with the
+cleared when the browser restarts. Aligning with the
 privacy-preserving "no persistent behavioral history" principle
 (the log records user-authored-rule hits, not raw behavior).
 
@@ -279,7 +279,7 @@ privacy-preserving "no persistent behavioral history" principle
    worker (`src/background.rs`) re-syncs dynamic DNR rules for the
    Block action. Content scripts re-read on tab reload for Remove
    / Hide / Spoof.
-4. **Evaluation**. Per request or per DOM mutation — see flow diagram.
+4. **Evaluation**. Per request or per DOM mutation. See flow diagram.
 5. **Logging**. Matched-rule events accumulate in per-tab state
    for the popup. See "The rule-hit event" above.
 
@@ -288,7 +288,7 @@ privacy-preserving "no persistent behavioral history" principle
 Hush's **behavioral suggestions** feature (opt-in, off by default)
 watches live page behavior and emits proposed rules. Signals are
 listed in the main [README](../README.md#signals-used). Every
-suggestion is a proposed **(scope, action, match)** triple — the
+suggestion is a proposed **(scope, action, match)** triple. The
 same shape as a stored rule. Clicking **Add** promotes the
 proposal to a stored rule; **Dismiss** drops it per-tab-session;
 **Allow** records the proposal key in
@@ -305,13 +305,13 @@ from IDS alerts".
 Three independent user-editable allowlists live in
 `chrome.storage.local["allowlist"]`:
 
-- **`iframes`** — URL substrings. A hidden iframe whose `src`
+- **`iframes`**. URL substrings. A hidden iframe whose `src`
   matches any entry is skipped by the detector (captcha, OAuth,
   payment, bot-management by default).
-- **`overlays`** — CSS selectors. A sticky overlay that matches
+- **`overlays`**. CSS selectors. A sticky overlay that matches
   any selector is skipped by the detector (React Portals, modal
   roots, framework shells).
-- **`suggestions`** — full suggestion keys (e.g.
+- **`suggestions`**. Full suggestion keys (e.g.
   `block::||example.com::canvas-fp`). Populated by the **Allow**
   button. Any listed key is filtered out at emit time.
 
@@ -374,7 +374,7 @@ extensions/hush/
 ## Planned work
 
 Forward-looking items live in [roadmap.md](roadmap.md), which is a
-prioritized queue — highest-priority at the top, items removed when
+prioritized queue. Highest-priority at the top, items removed when
 shipped.
 
 ## Design principles
@@ -393,7 +393,7 @@ These are the rules of thumb every change should preserve.
   in `chrome.storage.session` only.
 - **Surgical cleanup beats broad blocking**. Public blocklists
   already cover the easy cases. Hush's value is per-site, per-
-  signal precision on things those lists can't see — first-party
+  signal precision on things those lists can't see. First-party
   telemetry subdomains, site-specific custom elements, fingerprint
   APIs. The Kovarex rule: if a rule would be a one-line addition
   to EasyList, it doesn't belong in Hush.
