@@ -1,6 +1,6 @@
 // Rollup config. Build-time eslint was removed when upgrading to
 // eslint 9 (flat config) because @rollup/plugin-eslint hadn't
-// released a flat-config-compatible version at upgrade time —
+// released a flat-config-compatible version at upgrade time.
 // lint separately via `npm run lint` if needed.
 import {nodeResolve} from '@rollup/plugin-node-resolve';
 import commonjs from '@rollup/plugin-commonjs';
