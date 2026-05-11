@@ -86,7 +86,7 @@ pub fn pattern_keyword_wasm(pattern: &str) -> String {
 /// WASM-exported rule simulator. Options page hands in the current
 /// config, a site-host to simulate under, and the URL under test;
 /// receives back an ordered list of RuleMatches with the winner
-/// flagged. Pure function — no storage reads, no DNR calls.
+/// flagged. Pure function. No storage reads, no DNR calls.
 #[wasm_bindgen(js_name = "simulateUrl")]
 pub fn simulate_url_wasm(config: JsValue, site_host: &str, url: &str) -> Result<JsValue, JsValue> {
     let config: Config =
