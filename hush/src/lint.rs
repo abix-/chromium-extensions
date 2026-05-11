@@ -7,7 +7,7 @@
 //!   everything the block rule covers, making the block rule
 //!   unreachable for DNR.
 //! - **Dead rules**: configured rules that produced no `FirewallEvent`
-//!   over the log window. Not computed here — the popup derives this
+//!   over the log window. Not computed here. The popup derives this
 //!   from the firewall log directly, since "dead" is a property of
 //!   runtime observation, not static config.
 //! - **Zero-match selectors**: remove/hide selectors whose on-page
@@ -41,10 +41,10 @@ fn normalize_pattern(pat: &str) -> &str {
 /// normalized form is a prefix of the block's normalized form.
 /// Example: allow `||doubleclick.net` shadows block
 /// `||doubleclick.net/adx/`. A narrower allow (e.g. `||dc.net/adx/`)
-/// does NOT shadow a broader block (`||dc.net`) — it creates an
+/// does NOT shadow a broader block (`||dc.net`). It creates an
 /// exception, not a shadow.
 ///
-/// Disabled allow rules are ignored — a parked rule can't shadow.
+/// Disabled allow rules are ignored. A parked rule can't shadow.
 pub fn block_shadowed_by<'a>(
     allow_rules: &'a [RuleEntry],
     block_pattern: &str,
