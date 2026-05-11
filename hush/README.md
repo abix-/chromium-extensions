@@ -1,13 +1,13 @@
 # Hush
 
 **Firewall-style rule engine for Chrome.** Every website you load is
-running code that is not on your side — ad networks, analytics vendors,
+running code that is not on your side. Ad networks, analytics vendors,
 session-replay capture, first-party telemetry pipelines, fingerprinters
 reading your GPU model and installed fonts. Public blocklists catch the
 cross-site cases, but site-specific anti-user behavior is a gap public
 lists can't fill. Hush is the tool for that gap: a per-site (and soon
 global) rule engine that decides what the page is allowed to do. The
-mental model — **rules, scopes, actions, hit logs** — is borrowed from
+mental model. **rules, scopes, actions, hit logs**. Is borrowed from
 enterprise network firewalls, even though the enforcement points
 (DNR, DOM, CSS, prototype hooks) are all inside Chrome.
 
@@ -18,7 +18,7 @@ model, threat model, and rule taxonomy. The short version:
 
 A Hush rule is a **(scope, action, match)** triple.
 
-- **Scope**: `Global` (the reserved `__global__` key — applies to every
+- **Scope**: `Global` (the reserved `__global__` key. Applies to every
   tab) or a hostname (applies to that hostname and its subdomains via
   exact-or-suffix matching).
 - **Action**: `block`, `allow`, `neuter`, `silence`, `remove`, `hide`,
@@ -28,55 +28,55 @@ A Hush rule is a **(scope, action, match)** triple.
 
 The seven actions:
 
-1. **Block (network)** — URL patterns registered with
+1. **Block (network)**. URL patterns registered with
    `chrome.declarativeNetRequest`. Matching requests are rejected by the
    browser before DNS resolution, TCP connection, or TLS handshake. No
    bytes reach the network; the initiating `fetch()` or iframe load
    fails locally with `net::ERR_BLOCKED_BY_CLIENT`.
 
-2. **Allow (exception)** — the counter-rule to Block. Matching requests
+2. **Allow (exception)**. The counter-rule to Block. Matching requests
    pass through even when a broader Block rule would cover them (DNR
    priority override). For Remove/Hide, an Allow selector excludes
    matching nodes from the DOM passes. Use it to carve an exception out
    of a global rule on a single site.
 
-3. **Neuter (script capture)** — script-origin URL patterns. At
+3. **Neuter (script capture)**. Script-origin URL patterns. At
    `document_start`, main-world denies `addEventListener` calls for
    interaction events (click/keydown/mouse/scroll/touch) from matching
    script origins. No listener, no capture, no exfil. Upstream defense
    for session-replay vendors.
 
-4. **Silence (script exfil)** — script-origin URL patterns. Main-world
+4. **Silence (script exfil)**. Script-origin URL patterns. Main-world
    intercepts outbound `fetch` / `XMLHttpRequest.send` /
    `navigator.sendBeacon` from matching script origins and fake-succeeds
    them (204 No Content / XHR state 4 / beacon true). Fallback for
    bundled first-party replay libraries where Neuter can't match cleanly
    by origin.
 
-5. **Remove (DOM)** — CSS selectors whose matching elements are
+5. **Remove (DOM)**. CSS selectors whose matching elements are
    physically deleted via `element.remove()`. A `MutationObserver`
    re-applies on every DOM mutation so SPA routers and infinite-scroll
    insertions can't sneak the element back in.
 
-6. **Hide (CSS)** — CSS selectors applied with
+6. **Hide (CSS)**. CSS selectors applied with
    `display: none !important` via a user stylesheet injected at
    `document_start`. Skips layout, paint, and compositing. Mildest
    layer; leaves the element in the DOM and its JavaScript running.
 
-7. **Spoof (fingerprint)** — intercept specific fingerprinting APIs and
+7. **Spoof (fingerprint)**. Intercept specific fingerprinting APIs and
    return bland identical-across-users values instead of blocking the
    site. Supported kinds:
-   - `webgl-unmasked` — `getParameter(UNMASKED_VENDOR_WEBGL)` /
+   - `webgl-unmasked`. `getParameter(UNMASKED_VENDOR_WEBGL)` /
      `getParameter(UNMASKED_RENDERER_WEBGL)` return `"Google Inc."` /
      `"ANGLE (Generic)"` instead of the real GPU identity.
-   - `canvas` — `toDataURL` / `toBlob` return a constant 1x1 PNG;
+   - `canvas`. `toDataURL` / `toBlob` return a constant 1x1 PNG;
      `getImageData` returns a zero-initialized `ImageData`. Kills
      subpixel-rendering fingerprints; opt-in per site since legit
      canvas uses will break.
-   - `audio` — `OfflineAudioContext.startRendering` resolves to a
+   - `audio`. `OfflineAudioContext.startRendering` resolves to a
      silent `AudioBuffer`, neutralizing audio-rendering-divergence
      fingerprints.
-   - `font-enum` — `measureText` returns synthetic metrics whose
+   - `font-enum`. `measureText` returns synthetic metrics whose
      width depends only on text length, killing installed-font probes.
 
 Rules are evaluated **first-match-wins within each action**, top-down
@@ -112,7 +112,7 @@ one row; scope and action are inline dropdowns on each row:
   between action buckets.
 - **Match**: URL pattern, CSS selector, script-origin pattern, or
   fingerprint kind tag, depending on action.
-- Up/down buttons reorder within the row's `(scope, action)` bucket —
+- Up/down buttons reorder within the row's `(scope, action)` bucket.
   rules evaluate first-match-wins per action, so bucket order is what
   matters. Cross-bucket ordering is meaningless (DNR priority handles
   allow-over-block; other actions are orthogonal).
@@ -154,31 +154,31 @@ value-only entry.
 }
 ```
 
-- `block` — uBlock-style URL patterns (`||domain.com`,
+- `block`. UBlock-style URL patterns (`||domain.com`,
   `*.cdn.example.com`, path wildcards, etc.). Rules are keyed by scope
   in your config but applied as **global URL-pattern matches** at the
   network layer. A rule under `reddit.com` blocks its target URL
-  wherever that URL is requested — including from embedded third-party
+  wherever that URL is requested. Including from embedded third-party
   iframes loaded inside Reddit. Chrome's DNR `initiatorDomains` condition
   only matches the initiating frame's origin, which would fail for
   cross-origin iframe traffic, so we don't use it. For a URL blocked
   only on a specific site, make the pattern itself more specific.
-- `allow` — uBlock-style URL patterns (for network) or CSS selectors
+- `allow`. UBlock-style URL patterns (for network) or CSS selectors
   (for DOM). A matching URL passes DNR even if a broader `block` rule
   would cover it; a matching selector excludes nodes from the Remove
   and Hide passes.
-- `neuter` — script-origin URL patterns. Interaction-event
+- `neuter`. Script-origin URL patterns. Interaction-event
   `addEventListener` calls from matching script origins are silently
   denied at `document_start`.
-- `silence` — script-origin URL patterns. Outbound fetch/XHR/beacon
+- `silence`. Script-origin URL patterns. Outbound fetch/XHR/beacon
   calls from matching script origins are intercepted and fake-succeeded.
-- `remove` — CSS selectors. Matching elements are physically deleted
+- `remove`. CSS selectors. Matching elements are physically deleted
   from the DOM. Applied per-frame when the frame's hostname matches the
   scope.
-- `hide` — CSS selectors. Matching elements get `display: none
+- `hide`. CSS selectors. Matching elements get `display: none
   !important` via a user stylesheet. Per-frame application, same as
   `remove`.
-- `spoof` — kind tags identifying fingerprint signals to neutralize.
+- `spoof`. Kind tags identifying fingerprint signals to neutralize.
   Currently supported: `webgl-unmasked`. Applied via main-world hook;
   the site's JS still sees a string (not a thrown error), just a
   uselessly-bland one.
@@ -195,7 +195,7 @@ Clicking the toolbar icon opens a compact popup showing, for the current tab:
 - An expandable list of every blocked URL with timestamp and resource type
 - An expandable list of every removed element with tag + class signature,
   distinguishing attributes (`name`, `data-testid`, `post-title`, etc.), and a
-  short text-content preview — enough context to see *what* was killed, not
+  short text-content preview. Enough context to see *what* was killed, not
   just that something was killed
 - Badge on the icon:
     - **Yellow `!`** when the current tab has pending behavioral suggestions (needs your review)
@@ -204,9 +204,9 @@ Clicking the toolbar icon opens a compact popup showing, for the current tab:
 
 The popup footer has:
 
-- **Open options** — jump to the config editor
-- **Reload tab** — apply config changes to the current page
-- **Debug** — copy a JSON snapshot of the extension's state (config, dynamic
+- **Open options**. Jump to the config editor
+- **Reload tab**. Apply config changes to the current page
+- **Debug**. Copy a JSON snapshot of the extension's state (config, dynamic
   rules, tab stats, recent logs) to the clipboard for troubleshooting
 
 ## Architecture
@@ -224,7 +224,7 @@ context).
 
 Hush can observe what a page is doing and suggest rules to kill anti-user behavior
 that curated blocklists (uBlock Origin, AdGuard, Privacy Badger) can't catch because
-it's site-specific. **Off by default** — the user opts in knowing there's a small
+it's site-specific. **Off by default**. The user opts in knowing there's a small
 per-scan CPU cost.
 
 Enable the feature at the bottom of the options page. On the next tab reload, Hush
@@ -237,41 +237,41 @@ the matched site's config. Nothing is applied automatically.
 All observations come from APIs the browser already exposes. No filter list is
 fetched; no observations leave the machine.
 
-- **`sendBeacon` targets** — `navigator.sendBeacon` is purpose-built for telemetry;
+- **`sendBeacon` targets**. `navigator.sendBeacon` is purpose-built for telemetry;
   any third-party host receiving beacons gets a block suggestion.
-- **Tracking pixels** — third-party `<img>` responses smaller than 200 bytes are
+- **Tracking pixels**. Third-party `<img>` responses smaller than 200 bytes are
   the classic 1x1 pixel-tracker pattern.
-- **First-party telemetry subdomains** — subdomains of the current site whose
+- **First-party telemetry subdomains**. Subdomains of the current site whose
   observed responses are all tiny (median < 1 KB) are almost always internal
   tracking/widget endpoints that public lists can't know about.
-- **Polling endpoints** — the same canonical URL (with noise query params stripped)
+- **Polling endpoints**. The same canonical URL (with noise query params stripped)
   fetched four or more times within seconds, with tiny responses.
-- **Hidden iframes** — iframes with `display:none`, `visibility:hidden`, 1x1 size,
+- **Hidden iframes**. Iframes with `display:none`, `visibility:hidden`, 1x1 size,
   opacity 0, or positioned off-screen get a remove suggestion. Known-legit
   hidden iframes are filtered out automatically (see allowlist below).
-- **Sticky overlays** — fixed/sticky-position elements with z-index ≥ 100 covering
+- **Sticky overlays**. Fixed/sticky-position elements with z-index ≥ 100 covering
   ≥ 25 % of the viewport get a hide suggestion.
-- **Canvas fingerprinting** — `HTMLCanvasElement.toDataURL` / `toBlob` /
+- **Canvas fingerprinting**. `HTMLCanvasElement.toDataURL` / `toBlob` /
   `getImageData` hooks. 3+ calls from one script origin produces a block
   suggestion for that script. Confidence 90.
-- **WebGL fingerprinting** — `WebGLRenderingContext.getParameter` hook.
+- **WebGL fingerprinting**. `WebGLRenderingContext.getParameter` hook.
   Reading `UNMASKED_RENDERER_WEBGL` or `UNMASKED_VENDOR_WEBGL` (the
   GPU-model-identifying parameters) produces a block suggestion at
   confidence 95. General getParameter flurry (8+) at confidence 75.
-- **Audio fingerprinting** — any `OfflineAudioContext` construction is
+- **Audio fingerprinting**. Any `OfflineAudioContext` construction is
   flagged (it has essentially no legitimate non-fingerprinting use).
   Confidence 90.
-- **Font enumeration** — `measureText` with 20+ distinct font families in
+- **Font enumeration**. `measureText` with 20+ distinct font families in
   one session indicates installed-font probing. Confidence 85.
-- **Session replay tools** — known vendor globals polled (`window._hjSettings`,
+- **Session replay tools**. Known vendor globals polled (`window._hjSettings`,
   `window.FS`, `window.clarity`, `window.LogRocket`, `window.smartlook`,
   `window.mouseflow`, `window.__posthog`). Presence produces a block
   suggestion for the vendor's canonical domain at confidence 95.
-- **Session replay listener density** — 12+ `mousemove`/`keydown`/`click`/
+- **Session replay listener density**. 12+ `mousemove`/`keydown`/`click`/
   `scroll`/etc listeners attached to document/window/body in the first
   minute from a single script origin suggests replay-style capture.
   Confidence 80.
-- **Invisible animation loop** — hot 2D canvas draw ops (`fillRect`,
+- **Invisible animation loop**. Hot 2D canvas draw ops (`fillRect`,
   `drawImage`, `fill`, `stroke`, etc.) are hooked and sample the target
   canvas's visibility (viewport intersection + `display:none` /
   `visibility:hidden` / `opacity:0` / sub-2px dimensions) at most once per
@@ -287,7 +287,7 @@ accepting.
 
 ### Hidden-iframe allowlist
 
-Many legitimate features run in hidden iframes by design — captcha challenges,
+Many legitimate features run in hidden iframes by design. Captcha challenges,
 OAuth popups, payment processor widgets. Hush skips these automatically so
 they never surface as remove suggestions. Current allowlist:
 
@@ -323,7 +323,7 @@ When the feature is on, Hush scans:
 
 When the feature is off, the detector code is not installed. No listeners, no
 timers, no DOM walks. The **Scan this tab now** button in the popup's Suggestions
-panel runs a single one-shot scan without enabling the feature — useful for ad-hoc
+panel runs a single one-shot scan without enabling the feature. Useful for ad-hoc
 inspection.
 
 ### Badge signal
@@ -451,7 +451,7 @@ Worked examples with full rule sets and reasoning live under [`docs/`](docs/READ
 Honest side-by-side with uBlock Origin, Privacy Badger, Ghostery, Brave
 Shields, NoScript, and others lives in
 [docs/comparison.md](docs/comparison.md). Short version: Hush is not a
-replacement for uBlock Origin — it's a per-site surgical tool that
+replacement for uBlock Origin. It's a per-site surgical tool that
 catches first-party telemetry subdomains, site-specific custom elements,
 session-replay listener density, and fingerprint-API reads that curated
 filter lists can't see. Use it alongside a general blocker.
