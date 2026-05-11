@@ -336,7 +336,7 @@ fn merge_profile_into_config(current: &mut Config, incoming: &Config) -> MergeSt
 /// profile JSON (with `hushProfile` header) into the current
 /// config; Export wraps the current config with a user-supplied
 /// name / description and triggers a download. Import uses a
-/// dedup union — existing rules keep their metadata, new rules
+/// dedup union. Existing rules keep their metadata, new rules
 /// append to the end of the target bucket.
 #[component]
 fn ProfileTools(status: RwSignal<Option<StatusMsg>>) -> impl IntoView {
@@ -1711,7 +1711,7 @@ fn JsonEditor() -> impl IntoView {
 /// Rule simulator / test-match. User types a URL (and optionally a
 /// site hostname to simulate "as if on this site"); the pure
 /// `simulate::simulate_url` walks the active config and returns
-/// every rule that would fire plus the DNR winner. Read-only —
+/// every rule that would fire plus the DNR winner. Read-only.
 /// nothing fires, no network egress, no config write.
 #[component]
 fn UrlSimulator() -> impl IntoView {
@@ -1893,7 +1893,7 @@ fn render_match_row(m: crate::simulate::RuleMatch) -> impl IntoView {
 
 /// Best-effort host extraction from a user-typed URL. Used so the
 /// simulator's "site scope" input can default to the URL's own host
-/// when the user leaves it blank. No `url` crate dependency here —
+/// when the user leaves it blank. No `url` crate dependency here.
 /// we already have `web_sys::Url` from Leptos transitively.
 fn infer_host(raw: &str) -> String {
     let with_scheme = if raw.contains("://") {
