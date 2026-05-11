@@ -21,7 +21,7 @@ the grid entirely so fullscreen stays fullscreen.
 Two layers. The CSS layer does the visible work; the wheel layer
 prevents YouTube from running its scroll-handler side effects.
 
-**Layer 1 — manifest-injected CSS at `document_start`.**
+**Layer 1. Manifest-injected CSS at `document_start`.**
 [`content.css`](content.css) is applied before any YouTube
 script runs. Exact-class selectors match the four grid elements:
 
@@ -35,11 +35,11 @@ script runs. Exact-class selectors match the four grid elements:
 Each gets `display: none !important`. YouTube may still insert
 the elements into the DOM (we don't fight that) but they never
 render, and the "scroll for more videos" button bar never
-appears. Exact selectors only — wildcard `[class*="..."]`
+appears. Exact selectors only. Wildcard `[class*="..."]`
 patterns accidentally match the player shell in current YouTube
 layouts and cause a black fullscreen.
 
-**Layer 2 — capture-phase wheel listener.**  A `wheel` listener
+**Layer 2. Capture-phase wheel listener.**  A `wheel` listener
 is registered on `window` in capture phase (before any of
 YouTube's own handlers). When the user is fullscreen over the
 `.html5-video-player` element (and not inside the
@@ -73,21 +73,21 @@ selector stops matching.
    **Load unpacked**.
 2. Point at this directory (`chromium-extensions/zoom-extension`).
 
-No build step — pure JS + CSS. Reload the extension after
+No build step. Pure JS + CSS. Reload the extension after
 editing any file; hard-refresh any open YouTube tab (Ctrl+Shift+R)
 since CSS from content-scripts can be cached.
 
 ## Files
 
-- [`manifest.json`](manifest.json) — MV3 manifest. Requests
+- [`manifest.json`](manifest.json). MV3 manifest. Requests
   `storage` permission. Injects `content.css` at `document_start`
   and `content.js` at `document_end`.
-- [`content.css`](content.css) — the four grid selectors. Gated
+- [`content.css`](content.css). The four grid selectors. Gated
   on the `html.hush-zoom-show-fullscreen-grid` class so the
   toggle works.
-- [`content.js`](content.js) — zoom/pan handlers, capture-phase
+- [`content.js`](content.js). Zoom/pan handlers, capture-phase
   wheel blocker, storage listener that toggles the gating class.
-- [`options.html`](options.html) + [`options.js`](options.js) —
+- [`options.html`](options.html) + [`options.js`](options.js).
   single-checkbox options page.
 
 ## License
