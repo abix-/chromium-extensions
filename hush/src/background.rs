@@ -1051,7 +1051,7 @@ async fn compute_suggestions_for(state: &BehaviorState, config: &Config) -> Vec<
 /// After any config change, re-run compute_suggestions against every
 /// tab's stored behavior state. Without this pass, stale suggestions
 /// stay pinned in `tab_behavior[*].suggestions` until the tab rescans
-/// on its own — so a user who edits rules in options watches old
+/// on its own. So a user who edits rules in options watches old
 /// suggestions linger until they reload the tab manually. Cheap:
 /// same work that runs on every scan, just batched across tabs.
 async fn recompute_all_tab_suggestions() {
@@ -1321,9 +1321,9 @@ fn install_dnr_on_rule_matched_debug() -> Result<(), JsValue> {
         }
         let now = iso_now();
         // Only block hits bump the blocked-urls panel and the
-        // block counter. Allow hits are the counterweight — they
+        // block counter. Allow hits are the counterweight. They
         // indicate a request passed through, not that anything
-        // was suppressed — so they flow only to the firewall log.
+        // was suppressed. So they flow only to the firewall log.
         if action_kind == "block" {
             get_stats_mut(tid, |stats| {
                 stats.block += 1;
@@ -1548,7 +1548,7 @@ fn handle_stats(msg: &JsValue, sender: &JsValue) {
             }
         }
         if let Some(b) = broken {
-            // Union — once broken, stays broken for the page.
+            // Union. Once broken, stays broken for the page.
             for sel in b.remove {
                 if !s.broken_selectors.remove.contains(&sel) {
                     s.broken_selectors.remove.push(sel);
@@ -1651,7 +1651,7 @@ fn handle_spoof_hit(msg: &JsValue, sender: &JsValue) {
     // Spoof rules live under `spoof` in the merged site config. Find
     // which scope authored this kind so the log attributes the hit
     // correctly. If the kind is in neither the site's nor the
-    // global's spoof list (shouldn't happen — we only got here
+    // global's spoof list (shouldn't happen. We only got here
     // because mainworld read the dataset), fall back to the matched
     // site's scope then global.
     let scope = spoof_scope_for_tab(tab_id, &kind);
@@ -1671,8 +1671,8 @@ fn handle_spoof_hit(msg: &JsValue, sender: &JsValue) {
 }
 
 /// Shared handler for main-world enforced actions (`neuter`,
-/// `silence`). Both have the same wire shape — origin that matched,
-/// rule value that matched — and both attribute to whichever scope
+/// `silence`). Both have the same wire shape. Origin that matched,
+/// rule value that matched. And both attribute to whichever scope
 /// authored the rule. We resolve scope through the same
 /// matched-domain heuristic `handle_spoof_hit` uses.
 fn handle_main_world_hit(msg: &JsValue, sender: &JsValue, action: &'static str) {
@@ -2110,7 +2110,7 @@ fn handle_accept_suggestion(msg: &JsValue, send_response: JsValue) {
         // (e.g. `neuter::||host::listener-density`,
         // `block::||host::canvas-fp`), so the old
         // `{layer}::{value}` prefix no longer equals the full key.
-        // Filter by layer + value directly — that's the identity
+        // Filter by layer + value directly. That's the identity
         // the user accepted, regardless of key suffix.
         let layer_enum = match layer.as_str() {
             "block" => Some(crate::types::SuggestionLayer::Block),
