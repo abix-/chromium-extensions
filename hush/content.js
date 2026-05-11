@@ -432,7 +432,7 @@
   // `||host^` subset of uBlock syntax, plus `*` wildcards and
   // bare substring) that mainworld matches against the
   // initiating-script stack origin. Same write-and-read-at-call-
-  // time pattern as spoof -- mainworld reads the dataset every
+  // time pattern as spoof. Mainworld reads the dataset every
   // addEventListener / fetch / XHR / beacon call so ordering
   // between content-script and mainworld installs doesn't matter.
   // See mainworld.js::matchesHostPattern for the exact grammar.
@@ -661,7 +661,7 @@
       });
     }
     // Only ship brokenSelectors when something changed since the
-    // last send — background merges via union, so skipping when
+    // last send. Background merges via union, so skipping when
     // clean avoids redundant per-pass traffic.
     const brokenPayload = brokenDirty
       ? {
