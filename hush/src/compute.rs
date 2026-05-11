@@ -42,7 +42,7 @@ pub fn compute_suggestions(
     // refcount bump (2 instructions) rather than a Vec data copy.
     // Across a heavy_tab run with ~30 suggestions that's ~90 heap
     // allocations avoided.
-    // Dedup only against ENABLED rules. A disabled rule is parked —
+    // Dedup only against ENABLED rules. A disabled rule is parked.
     // the user wants the detector to keep surfacing suggestions for
     // that match so the "what gets caught if I turn this back on?"
     // workflow stays live.
@@ -345,7 +345,7 @@ mod tests {
 
     #[test]
     fn disabled_block_rule_does_not_suppress_suggestion() {
-        // A disabled rule is parked — the detector should keep
+        // A disabled rule is parked. The detector should keep
         // surfacing the suggestion so the user can see what it
         // would catch if flipped back on. Regression lock for
         // Stage 9 phase 4 per-rule disable.
