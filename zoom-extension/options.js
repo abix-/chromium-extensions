@@ -1,5 +1,5 @@
 // Single setting today: block YouTube's fullscreen
-// scroll-to-more-videos behavior. Default on — that's the
+// scroll-to-more-videos behavior. Default on. That's the
 // behavior users installing this extension typically want.
 const DEFAULTS = {
   blockFullscreenScroll: true
