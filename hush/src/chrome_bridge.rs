@@ -19,7 +19,7 @@ use crate::types::{BlockDiagnostic, Config, FirewallEvent, Suggestion};
 /// The default `serde_wasm_bindgen::to_value` emits Rust maps
 /// (HashMap / IndexMap) as JS `Map` objects per the ECMAScript
 /// spec, but `chrome.storage.local` stores values as JSON and
-/// refuses `Map` — it reads back as `{}`. This helper forces
+/// refuses `Map`. It reads back as `{}`. This helper forces
 /// `serialize_maps_as_objects(true)` so every write is a plain
 /// JS object + JSON-compatible. Safe for non-map types too
 /// (no-op there).
@@ -125,7 +125,7 @@ struct OkResp {
 }
 
 /// POST the accept-suggestion action, then refetch. `scope` is
-/// `"site"` or `"global"` — controls which SiteConfig the new
+/// `"site"` or `"global"`. Controls which SiteConfig the new
 /// rule lands under.
 pub async fn accept_suggestion(
     hostname: &str,
