@@ -99,7 +99,7 @@
   // YouTube fullscreen grid blocker (per-user).
   //
   // Primary mechanism is the manifest-injected content.css which
-  // runs at document_start — before any YouTube script — and
+  // runs at document_start. Before any YouTube script. And
   // unconditionally hides every variant of `.ytp-fullscreen-grid*`,
   // `.ytp-fullerscreen-*`, and `.ytp-modern-videowall-still*` via
   // wildcard attribute selectors. That's enough on its own: the
