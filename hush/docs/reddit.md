@@ -146,7 +146,7 @@ Which means: a network Block rule targeting that `src` URL will match zero reque
 
 The Block layer still shines for:
 
-- `navigator.sendBeacon` targets (called directly by site JS, no intermediate DOM element to remove — Block is the ONLY mechanism)
+- `navigator.sendBeacon` targets (called directly by site JS, no intermediate DOM element to remove. Block is the ONLY mechanism)
 - Eager `<iframe src>` that auto-loads on insertion
 - `<img>`, `<script>`, `<link>` tags that trigger fetches immediately
 - Any direct `fetch()` or `XMLHttpRequest` invoked by site code
@@ -162,7 +162,7 @@ Reverse case: a network Block rule fires but the corresponding element is still 
 | Lazy custom elements with `loading="programmatic"` | **No** | **Yes (only option)** |
 | Sidebar widgets, banners, promo components | Limited | Yes |
 
-The Hush popup's Block rules diagnostic panel will tell you at a glance: if your Block rule shows `no traffic` indefinitely while the corresponding Remove rule is clearly working, you're likely in the lazy-element case and Block is redundant — drop it.
+The Hush popup's Block rules diagnostic panel will tell you at a glance: if your Block rule shows `no traffic` indefinitely while the corresponding Remove rule is clearly working, you're likely in the lazy-element case and Block is redundant. Drop it.
 
 ## Iframes and per-tab rules
 
