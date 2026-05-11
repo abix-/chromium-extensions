@@ -34,4 +34,4 @@ npm run test       # jest
 
 ## License
 
-MIT (see [LICENSE](LICENSE)) — inherited from upstream.
+MIT (see [LICENSE](LICENSE)). Inherited from upstream.
