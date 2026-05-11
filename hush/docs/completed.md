@@ -9,28 +9,28 @@ notes and [history.md](history.md) for retired stage narrative).
 Every rule is a `(scope, action, match)` triple. Seven actions
 available:
 
-- **Block** (network) — URL pattern; matching requests fail with
+- **Block** (network). URL pattern; matching requests fail with
   `net::ERR_BLOCKED_BY_CLIENT` via `chrome.declarativeNetRequest`.
-- **Allow** (exception) — counter-rule to Block. DNR priority
+- **Allow** (exception). Counter-rule to Block. DNR priority
   override at the network layer; CSS-selector exclusion at the
   DOM layer. Lets a site-scoped rule carve an exception out of a
   broader global rule.
-- **Neuter** (script capture) — script-origin URL pattern. At
+- **Neuter** (script capture). Script-origin URL pattern. At
   `document_start`, denies `addEventListener` registrations for
   interaction events (click/keydown/mouse/scroll/touch) from
   matching origins. Upstream defense for session-replay vendors.
-- **Silence** (script exfil) — script-origin URL pattern.
+- **Silence** (script exfil). Script-origin URL pattern.
   Intercepts outbound `fetch` / `XMLHttpRequest` /
   `navigator.sendBeacon` from matching origins and fake-succeeds
   them (204 / state 4 / true). Fallback for bundled replay
   libraries where Neuter can't match cleanly by origin.
-- **Remove** (DOM) — CSS selector; matching elements are
+- **Remove** (DOM). CSS selector; matching elements are
   physically deleted via `element.remove()`. A MutationObserver
   re-applies on every mutation.
-- **Hide** (CSS) — CSS selector; matching elements get
+- **Hide** (CSS). CSS selector; matching elements get
   `display: none !important` via a user stylesheet at
   `document_start`. Leaves the element in the DOM.
-- **Spoof** (fingerprint) — kind tag; returns bland constants
+- **Spoof** (fingerprint). Kind tag; returns bland constants
   from the named fingerprint API instead of real values.
   Fingerprint kinds: `webgl-unmasked`, `canvas`, `audio`,
   `font-enum`. Kill-switch kinds (no legitimate user-side use;
@@ -49,28 +49,28 @@ priority, not table ordering.
 Every rule is a `RuleEntry { value, disabled, tags, comment }`,
 not a bare string. Metadata lives next to the match value.
 
-- `disabled` — boolean; evaluator skips the rule without deleting
+- `disabled`. Boolean; evaluator skips the rule without deleting
   the row (DNR sync excludes, content-applier skips, suggestion
   dedup ignores).
-- `tags` — free-form labels. Detector-origin tags use the
+- `tags`. Free-form labels. Detector-origin tags use the
   `auto:<kind>` prefix (`auto:canvas-fp`, `auto:replay-vendor`,
   etc.) so the firewall log can distinguish hand-authored from
   detector-derived rules.
-- `comment` — author's note.
+- `comment`. Author's note.
 
 ## Scopes
 
-- **Site-scoped** — rules live under a hostname key
+- **Site-scoped**. Rules live under a hostname key
   (`reddit.com`). Apply when the tab's hostname exactly matches
   or is a suffix of the key (`reddit.com` covers
   `www.reddit.com`, `sh.reddit.com`, etc).
-- **Global** — reserved `__global__` key. Rules apply on every
+- **Global**. Reserved `__global__` key. Rules apply on every
   tab, layered underneath site-scoped rules. No schema migration;
   underscore-prefixed keys can't collide with real hostnames.
 
 ## Options UI: flat firewall-style rule table
 
-Single sortable table — one row per rule across every scope and
+Single sortable table. One row per rule across every scope and
 every action. Columns: `On | # | Scope | Action | Match | Tags |
 Comment | ↑ ↓ ×`. Scope and action are inline `<select>` cells;
 changing them relocates the rule between storage buckets without
@@ -104,11 +104,11 @@ tag chips, substring search.
 
 Inline rule-health annotations per row:
 
-- **shadowed by allow** — block rule covered by an earlier allow
+- **shadowed by allow**. Block rule covered by an earlier allow
   (DNR-unreachable).
-- **no DOM match on this tab** — remove/hide selector with count
+- **no DOM match on this tab**. Remove/hide selector with count
   0 on the current tab.
-- **invalid selector (threw on querySelectorAll)** — selector
+- **invalid selector (threw on querySelectorAll)**. Selector
   rejected by the browser's CSS parser; content-script flagged
   it on a recent pass.
 
@@ -135,30 +135,30 @@ Signals currently emitted:
 
 **Main-world fingerprinting** (via API hooks):
 
-- Canvas fingerprinting (toDataURL / toBlob / getImageData) —
+- Canvas fingerprinting (toDataURL / toBlob / getImageData).
   confidence 90
 - WebGL `UNMASKED_RENDERER_WEBGL` / `UNMASKED_VENDOR_WEBGL`
-  reads — confidence 95
-- WebGL general `getParameter` density (8+) — confidence 75
-- Audio fingerprinting (`OfflineAudioContext` construction) —
+  reads. Confidence 95
+- WebGL general `getParameter` density (8+). Confidence 75
+- Audio fingerprinting (`OfflineAudioContext` construction).
   confidence 90
 - Font enumeration via `measureText` (20+ distinct font
-  families) — confidence 85
+  families). Confidence 85
 
 **Session replay**:
 
 - Vendor global poll (Hotjar, FullStory, Clarity, LogRocket,
-  Smartlook, Mouseflow, PostHog) — confidence 95
+  Smartlook, Mouseflow, PostHog). Confidence 95
 - Listener density on document/window/body (12+ interaction
   listeners from one origin within 60s) → suggests **Neuter**
-  rather than URL block — confidence 80
+  rather than URL block. Confidence 80
 
 **Attention tracking**:
 
 - Attention / page-lifecycle listener density (4+
   `visibilitychange` / `focus` / `blur` / `pagehide` /
   `pageshow` / `beforeunload` listeners across 3+ distinct
-  types from one origin within 60s) → suggests **Neuter** —
+  types from one origin within 60s) → suggests **Neuter**.
   confidence 75. Catches engagement analytics and
   session-replay dwell-time hooks that Brave Shields doesn't
   specifically target.
@@ -166,7 +166,7 @@ Signals currently emitted:
 **Clipboard read**:
 
 - Any `navigator.clipboard.readText()` call from a page script
-  → suggests **Block** for the calling origin — confidence 95.
+  → suggests **Block** for the calling origin. Confidence 95.
   Chrome gesture-gates the API but legit page-script use is
   near-zero (password managers and clipboard inspectors run as
   extensions, not page scripts), so one call is enough signal.
@@ -177,10 +177,10 @@ Signals currently emitted:
 
 - Any call to `Bluetooth.requestDevice` / `USB.requestDevice` /
   `HID.requestDevice` / `Serial.requestPort` from a page script
-  → suggests **Block** for the calling origin — confidence 90.
+  → suggests **Block** for the calling origin. Confidence 90.
   Legit uses are rare (maker-space, industrial, dev-tool
   contexts) and always clearly user-initiated. Random web
-  pages calling these are fingerprint probes — the permission
+  pages calling these are fingerprint probes. The permission
   prompt itself is an entropy signal. Brave doesn't hook any
   of these APIs. `navigator.share` is excluded because legit
   share-button use is common.
@@ -189,7 +189,7 @@ Signals currently emitted:
 
 - 10+ distinct `Navigator.*` / `Screen.*` accessor reads from
   one origin within 60s → suggests **Block** for the calling
-  origin — confidence 80. Monkey-patches the property getters
+  origin. Confidence 80. Monkey-patches the property getters
   at document_start; emits per-read observation; detector
   counts distinct params (repeat reads of one property don't
   inflate). Layout-noisy properties (innerWidth / innerHeight
@@ -223,9 +223,9 @@ Every suggestion has three buttons:
 
 Plus two diagnostic panels:
 
-- **Why?** — dedup diagnostic: tab hostname vs matched config
+- **Why?**. Dedup diagnostic: tab hostname vs matched config
   key, existing rule count + sample, dedup outcome.
-- **Evidence** — raw observations (URLs, sizes, timestamps,
+- **Evidence**. Raw observations (URLs, sizes, timestamps,
   outerHTML snippets, stack traces) with a clipboard copy
   button.
 
@@ -261,12 +261,12 @@ profile...** buttons.
 
 Three sections, user-editable from the options page:
 
-- **iframes** — URL substrings. Hidden iframes whose src
+- **iframes**. URL substrings. Hidden iframes whose src
   contains any entry are skipped at detection time. Defaults
   cover captcha, OAuth, payment widgets.
-- **overlays** — CSS selectors. Sticky/fixed elements matching
+- **overlays**. CSS selectors. Sticky/fixed elements matching
   any selector are skipped.
-- **suggestions** — full suggestion keys. Populated by the
+- **suggestions**. Full suggestion keys. Populated by the
   Allow button.
 
 ## Popup debug payload
