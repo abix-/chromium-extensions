@@ -6,7 +6,7 @@
 //! To attribute an observation to the script that fired it, find the
 //! first frame whose URL has an http/https anchor and parse its host.
 //!
-//! Hush's own frames are `chrome-extension://<id>/mainworld.js` —
+//! Hush's own frames are `chrome-extension://<id>/mainworld.js`.
 //! they carry no http/https anchor, so [`extract_host`] returns
 //! `None` for them naturally and they're skipped without a
 //! dedicated filename check. A prior substring filter on
