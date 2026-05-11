@@ -22,7 +22,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   - Screen: colorDepth, pixelDepth.
 - Layout-noisy accessors (innerWidth / innerHeight /
   devicePixelRatio / screen.width / screen.height) are
-  deliberately NOT hooked — responsive-design code reads them
+  deliberately NOT hooked. Responsive-design code reads them
   every paint and would flood the detector with noise. The
   pay-off would be minimal since they're also the least
   discriminating fingerprint signals.
@@ -39,7 +39,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   `navigator_fp_below_threshold_no_suggestion`,
   `navigator_fp_repeat_reads_dont_inflate_count`. 119/119 pass.
 - Motivation: Brave farbles navigator / screen property values
-  but does so silently — users don't know which sites tried
+  but does so silently. Users don't know which sites tried
   to fingerprint them. Hush's detector is the transparency
   layer over Brave's defense, and real defense for non-Brave
   users.
@@ -50,7 +50,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   `Serial.prototype.requestPort`. All four emit a
   `new-api-probe` observation with the constructor-qualified
   method name.
-- `navigator.share` deliberately **not** hooked — legit
+- `navigator.share` deliberately **not** hooked. Legit
   share-button use is too common; would false-positive.
 - New detector: any `new-api-probe` observation emits a block
   suggestion for the calling script origin. Confidence 90.
@@ -70,7 +70,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
 ### Clipboard-read detector (Block)
 - New main-world hook: `Clipboard.prototype.readText` wrapped to
   emit a `clipboard-fp` observation on every call. `writeText`
-  is NOT hooked — too many legit "copy link" uses would
+  is NOT hooked. Too many legit "copy link" uses would
   false-positive; revisit if a concrete write-side abuse pattern
   surfaces.
 - New detector: any `clipboard-fp` observation emits a block
@@ -92,7 +92,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   existing interaction-event set. Tracked types:
   `visibilitychange`, `focus`, `blur`, `pagehide`, `pageshow`,
   `beforeunload`.
-- Neuter enforcement extended — when the user has a Neuter rule
+- Neuter enforcement extended. When the user has a Neuter rule
   matching the calling script origin, attention-event listener
   registrations are denied the same way interaction-event
   registrations already were.
@@ -122,7 +122,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   the rendered output is uniform per row.
 - New `HealthData` snapshot fetched once at options-page mount
   via two new handlers:
-  - `hush:get-all-broken-selectors` — unions
+  - `hush:get-all-broken-selectors`. Unions
     `TabStatsEntry.broken_selectors` across every tab.
     Selectors are CSS-invalid regardless of which tab reported
     them, so the union is the right aggregation.
@@ -175,13 +175,13 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   object whose width is a constant function of text length (not
   font family), collapsing cross-font width probing to one
   invariant value. Emits one `font-enum` spoof-hit per page.
-  Returned object is not `instanceof TextMetrics` — acceptable
+  Returned object is not `instanceof TextMetrics`. Acceptable
   trade-off for opt-in spoof.
 - All three new kinds follow the `dataset.hushSpoof` opt-in
   pattern that `webgl-unmasked` established. New `hasSpoofTag()`
   helper centralizes the dataset read; existing `webgl-unmasked`
   branch refactored onto it.
-- No Rust changes required — `spoof_kind_for_signal` in
+- No Rust changes required. `spoof_kind_for_signal` in
   `src/detectors.rs` already mapped `canvas-fp` / `audio-fp` /
   `font-fp` observations to these spoof tags (anticipating Stage
   8); the main-world enforcement was the missing piece.
@@ -191,7 +191,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   action are now inline `<select>` cells on every row; all scopes
   and all actions render top-to-bottom in one sortable,
   filterable grid. Replaces the prior two-pane site-list + seven
-  per-action `<fieldset>` layout. Storage schema unchanged —
+  per-action `<fieldset>` layout. Storage schema unchanged.
   `Config = IndexMap<scope, SiteConfig>` with seven `Vec<RuleEntry>`
   fields still owns the data; the table flattens on read and
   routes writes back to the right bucket.
@@ -201,7 +201,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   current bucket and appends to the target bucket. "+ New site..."
   in the scope dropdown prompts for a hostname and creates the
   entry lazily. Up/down still reorder within the `(scope, action)`
-  bucket — first-match-wins evaluation stays per-action.
+  bucket. First-match-wins evaluation stays per-action.
 
 ### Stage 13: rule simulate / test-match UI
 - New `src/simulate.rs` module with a pure `simulate_url(config,
@@ -209,20 +209,20 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   site-scoped block / allow / neuter / silence rules, returns
   every match with action / scope / priority and flags the DNR
   winner (allow beats block at the same priority). Neuter and
-  silence matches are reported but don't compete for the winner —
+  silence matches are reported but don't compete for the winner.
   they're a different dimension (stack-origin vs. request URL).
 - Shared `url_filter_matches()` helper supports the uBlock-style
   shapes the editor produces: `||host[/path][^]` anchored matches
   and bare-substring. Host match checks exact or suffix
   (subdomain); path match is prefix; `^` enforces a boundary
   (end-of-URL, `/`, `?`, `#`). Wildcards are out of scope for
-  the MVP — add when a user hits a gap.
+  the MVP. Add when a user hits a gap.
 - 13 unit tests cover anchored matches, subdomain resolution,
   path prefix, caret boundary, bare substring, disabled rules,
   winner resolution, neuter/silence reporting, suffix site-scope
   match.
 - WASM export `simulateUrl(config, siteHost, url)` for any JS
-  caller. Pure Rust — no storage read, no DNR call, no side
+  caller. Pure Rust. No storage read, no DNR call, no side
   effect.
 - New options-page component `UrlSimulator` in
   `src/ui_options.rs`: collapsible "Test a URL against your
@@ -243,7 +243,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
     denies interaction-event registrations (click, keydown/up,
     mousedown/up/move, scroll, wheel, touch*, keypress, input)
     whose caller stack origin matches. Listeners that don't
-    register never fire — no CPU burn per keystroke, no capture,
+    register never fire. No CPU burn per keystroke, no capture,
     no exfil. Legitimate site listeners from other origins pass.
   - **`silence`**: script-origin URL filter. Main-world intercepts
     outbound fetch / `XMLHttpRequest.send` / `navigator.sendBeacon`
@@ -252,7 +252,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
     beacon → `true`). Fallback for bundled first-party replay
     where neuter can't match by origin without false-positives.
 - `mainworld.js` gains `stackOriginHost()`, `matchesUrlFilter()`,
-  `findFilterMatch()` helpers — 40-line pure-JS mirror of
+  `findFilterMatch()` helpers. 40-line pure-JS mirror of
   `src/stack.rs::script_origin_from_stack` (mainworld can't call
   WASM, CSP). Dataset carriers `dataset.hushNeuter` /
   `dataset.hushSilence` hold the comma-separated merged rule
@@ -273,7 +273,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   suggestions with `key = "neuter::<origin>::listener-density"`
   so accepting the suggestion authors a neuter rule instead of
   the old block-the-URL rule. The replay-vendor detector (global
-  sentinels) keeps emitting `Block` — vendor origins are already
+  sentinels) keeps emitting `Block`. Vendor origins are already
   host-distinct so a URL block still makes sense there.
 - `background.js` schema migration `FIELDS` gains `"neuter"` and
   `"silence"` so any future import/export round-trips cleanly.
@@ -332,7 +332,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
 
 ### Stage 9 phase 3: persistent searchable firewall log
 - `BackgroundState.tab_events: HashMap<i32, VecDeque<_>>` replaced
-  by `firewall_log: VecDeque<FirewallEvent>` — one global FIFO
+  by `firewall_log: VecDeque<FirewallEvent>`. One global FIFO
   across every tab. Cap raised from 500/tab to 10k total (~2 MB
   serialized; comfortable under the 10 MB `chrome.storage.session`
   quota).
@@ -365,7 +365,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   matched at least once on the current page; one
   `FirewallEvent { action: "hide" }` fires per selector per
   navigation. Piggybacks on the existing `hush:stats` message via
-  a new `newHideEvents` field — no extra round-trips.
+  a new `newHideEvents` field. No extra round-trips.
 - Spoof events: `mainworld.js` dispatches a
   `__hush_spoof_hit__` CustomEvent on the first
   getParameter-returns-bland hit per (kind, page). `content.js`
@@ -439,7 +439,7 @@ Format is loosely based on Keep-a-Changelog. Each release bumps
   `comment` (free-form; stored as `Option<String>`, `None` when
   the field is blank). Both use the `on:change` event so the
   write doesn't fire on every keystroke.
-- Stored shape on disk stays identical — `skip_serializing_if`
+- Stored shape on disk stays identical. `skip_serializing_if`
   on the new `tags` + `comment` fields means a rule without
   metadata still serializes as `{"value": "..."}` and a rule
   with metadata adds only the fields in use. No migration.
@@ -553,7 +553,7 @@ changes expected).
 - Iter 2: unified firewall-event platform. `FirewallEvent` type
   (`{t, rule_id, action, scope, match, evidence}`) with
   action-tagged `FirewallEvidence` (Block / Remove / None). Stable
-  `rule_id` format: `"{action}::{scope}::{match}"` — matches
+  `rule_id` format: `"{action}::{scope}::{match}"`. Matches
   suggestion-key format. Per-tab ring buffer (cap 500) in
   `BackgroundState.tab_events`; wired into DNR `onRuleMatchedDebug`
   and `hush:stats.newRemovedElements` so block + remove hits both
