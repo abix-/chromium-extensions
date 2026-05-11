@@ -22,7 +22,7 @@ pub fn build_suggestion(input: &BuildSuggestionInput) -> Suggestion {
         SuggestionLayer::Block => &input.existing_block,
         SuggestionLayer::Remove => &input.existing_remove,
         SuggestionLayer::Hide => &input.existing_hide,
-        // Neuter / silence suggestions don't dedup yet — the
+        // Neuter / silence suggestions don't dedup yet. The
         // detector pipeline doesn't populate their "existing"
         // lists. Always-emit for now; revisit when the
         // replay-listener detector upgrades to Neuter.
