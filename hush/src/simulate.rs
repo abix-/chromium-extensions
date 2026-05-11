@@ -4,7 +4,7 @@
 //! whose match pattern fires and mark the winner per the evaluator's
 //! semantics (allow > block at the same DNR priority; neuter and
 //! silence match on host only and have no priority-vs-block
-//! interaction — they report independently).
+//! interaction. They report independently).
 //!
 //! The simulator is a read-only audit tool: it inspects config and
 //! returns what WOULD happen, without firing any rule. It's the
@@ -14,7 +14,7 @@
 //! `chrome.declarativeNetRequest`'s `urlFilter` does for block /
 //! allow, plus the uBlock-style `||host^` shape documented in
 //! `docs/architecture.md`. Full DNR parity (wildcards, path anchors)
-//! is out of scope for the MVP — the cases users actually audit are
+//! is out of scope for the MVP. The cases users actually audit are
 //! host-prefix and path-prefix.
 //!
 //! Nothing here is WASM-specific. Pure Rust with exhaustive unit
@@ -47,7 +47,7 @@ pub struct RuleMatch {
 /// matching rule with a `is_winner` flag on the DNR-resolved
 /// winner (allow beats block at the same priority). Neuter and
 /// silence matches are reported alongside but don't compete with
-/// block/allow for the winner crown — they're a different dimension
+/// block/allow for the winner crown. They're a different dimension
 /// (stack-origin vs. request URL).
 ///
 /// `site_host` is the hostname the user is simulating "as if I
@@ -81,7 +81,7 @@ pub fn simulate_url(config: &Config, site_host: &str, url: &str) -> Vec<RuleMatc
         } else {
             (*label).to_string()
         };
-        // block (priority 1) + allow (priority 2) — both operate on
+        // block (priority 1) + allow (priority 2). Both operate on
         // the full URL.
         for entry in &cfg.block {
             if url_filter_matches(&entry.value, url_trimmed) {
@@ -93,7 +93,7 @@ pub fn simulate_url(config: &Config, site_host: &str, url: &str) -> Vec<RuleMatc
                 out.push(build_match(&scope_label, "allow", entry, 2));
             }
         }
-        // neuter + silence — operate on the initiating-script
+        // neuter + silence. Operate on the initiating-script
         // origin, which for the simulator means the host of the
         // URL under test. Priority 0 so they don't compete with
         // block/allow for the DNR winner.
@@ -156,7 +156,7 @@ fn build_match(scope: &str, action: &str, entry: &RuleEntry, priority: u32) -> R
 }
 
 /// Pick the site-scope key that would apply for `site_host`. Mirrors
-/// `compute::find_config_entry` — exact match wins, otherwise a
+/// `compute::find_config_entry`. Exact match wins, otherwise a
 /// suffix-matching entry.
 fn resolve_site_key(config: &Config, site_host: &str) -> Option<String> {
     if site_host.is_empty() {
@@ -179,10 +179,10 @@ fn resolve_site_key(config: &Config, site_host: &str) -> Option<String> {
 /// uBlock-style URL-filter match. Supports the shapes the editor
 /// produces today:
 ///
-/// - `||host[/path][^]` — anchored on domain: host must exactly equal
+/// - `||host[/path][^]`. Anchored on domain: host must exactly equal
 ///   `host` OR be a subdomain of it; optional path prefix after the
 ///   host; optional `^` boundary treated as end-of-host or `/`.
-/// - bare `substring` — substring-matched anywhere in the URL.
+/// - bare `substring`. Substring-matched anywhere in the URL.
 ///
 /// Not supported (MVP): `*` wildcards, `|` terminators, regex
 /// alternation. Add when user-demand hits a gap.
@@ -198,7 +198,7 @@ pub fn url_filter_matches(pattern: &str, url: &str) -> bool {
     let (url_host, url_path) = split_url_host_path(url);
 
     if let Some(rest) = pat.strip_prefix("||") {
-        // `||host[/path][^]` — split rest at first `/` or `^`.
+        // `||host[/path][^]`. Split rest at first `/` or `^`.
         let (host_part, tail) = split_anchored_pattern(rest);
         if host_part.is_empty() {
             return false;
@@ -216,7 +216,7 @@ pub fn url_filter_matches(pattern: &str, url: &str) -> bool {
             (tail, false)
         };
         if tail_path.is_empty() && caret {
-            // `||host^` — matches any URL on that host (we already
+            // `||host^`. Matches any URL on that host (we already
             // confirmed the host). Caret only enforces a boundary,
             // which the host-match already gave us.
             return true;
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn simulate_url_reports_block_and_allow_allow_wins() {
-        // Global block + site-scoped allow — allow should win via
+        // Global block + site-scoped allow. Allow should win via
         // priority.
         let mut cfg = Config::new();
         cfg.insert(
