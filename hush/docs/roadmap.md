@@ -2,7 +2,7 @@
 
 Forward-only. What's left to build, in priority order, **for a
 Brave (latest) user**. Move items up/down as you re-prioritize.
-Mark shipped items by deleting them from this file — present-tense
+Mark shipped items by deleting them from this file. Present-tense
 state lives in [architecture.md](architecture.md) and the feature
 snapshot in [completed.md](completed.md); rollout notes land in
 [CHANGELOG.md](../CHANGELOG.md) and [history.md](history.md).
@@ -16,18 +16,18 @@ all of this on-by-default at the browser layer:
 
 - EasyList / EasyPrivacy / uBO lists + Brave-curated lists.
   Standard mode = third-party only; Aggressive mode = first-party too.
-- Fingerprint **farbling** — per-session per-eTLD+1 seed
+- Fingerprint **farbling**. Per-session per-eTLD+1 seed
   randomizes canvas, audio, WebGL, font-enum, and many
   navigator/screen properties. Stronger than any extension spoof.
 - HTTPS upgrade (Strict mode shows interstitial on failure).
-- **CNAME-cloaked tracker unmasking** — MV3 extensions have no
+- **CNAME-cloaked tracker unmasking**. MV3 extensions have no
   DNS API and can't replicate.
 - Third-party storage partitioning + ephemeral storage.
 - URL query-parameter stripping (curated global list).
 - Referrer header rewriting (policy-level).
-- **Debouncing** — skips known click-redirectors entirely.
+- **Debouncing**. Skips known click-redirectors entirely.
 - Social-media widget blocking.
-- **Resource replacement** — GA4 / Meta Pixel scripts replaced
+- **Resource replacement**. GA4 / Meta Pixel scripts replaced
   with no-op stubs.
 - Global Privacy Control header, De-AMP, language-fingerprinting
   reduction, Client-Hints limiting, Auto Shred.
@@ -36,29 +36,29 @@ Given that footprint, the priority rule becomes: **promote items
 that do things Brave doesn't, demote items that duplicate Brave
 at a narrower scope**. Specifically, per-site overrides of Brave's
 global decisions (strip, referrer, redirector detection) are
-useful but not priority — they cover edge cases a default-on
+useful but not priority. They cover edge cases a default-on
 Brave install already handles.
 
 Recently shipped under this framing:
 
-- **attention-tracking detector** — 4+ `visibilitychange` /
+- **attention-tracking detector**. 4+ `visibilitychange` /
   `focus` / `blur` / `pagehide` / `pageshow` / `beforeunload`
   listeners from one origin → Neuter suggestion. Catches
   engagement analytics + session-replay dwell-time hooks.
-- **clipboard-read detector** — any `navigator.clipboard
+- **clipboard-read detector**. Any `navigator.clipboard
   .readText()` call from a page script → Block suggestion for
   the calling origin (confidence 95). Legit page-script use is
   near-zero; read attempts mean coupon/competitor-URL sniffing
   or paste-in tracking. Brave doesn't hook this.
-- **device-api-probe detector** — any call to
+- **device-api-probe detector**. Any call to
   `Bluetooth.requestDevice` / `USB.requestDevice` /
   `HID.requestDevice` / `Serial.requestPort` from a page script
   → Block suggestion (confidence 90). Legit uses are rare
   (maker-space / industrial / dev-tool contexts); random web
   pages calling these are probes. Brave doesn't hook these.
-  `navigator.share` deliberately excluded — legit share-button
+  `navigator.share` deliberately excluded. Legit share-button
   use is common enough that it would false-positive.
-- **navigator-fp detector (Tier 3)** — 10+ distinct
+- **navigator-fp detector (Tier 3)**. 10+ distinct
   `Navigator.*` / `Screen.*` accessor reads from one origin
   within 60s → Block suggestion (confidence 80). Layout-noisy
   accessors (innerWidth / innerHeight / devicePixelRatio /
@@ -67,7 +67,7 @@ Recently shipped under this framing:
   the values but silently; this detector is the transparency
   layer over that defense.
 
-## Priority 1 — pure detection gaps Brave doesn't cover
+## Priority 1. Pure detection gaps Brave doesn't cover
 
 These are behavioral signals Brave doesn't specifically target.
 They're the cleanest fit for Hush's thesis (per-tab behavioral
@@ -81,19 +81,19 @@ starter content.
 
 Author three seed profiles:
 
-- **brave-supplement.json** — the Hush-specific bits a Brave
+- **brave-supplement.json**. The Hush-specific bits a Brave
   user benefits from: site-specific Remove/Hide rules,
   first-party telemetry subdomain blocks, Neuter rules for
   bundled session-replay libraries. Tight and focused; pairs
   cleanly with Brave Shields.
-- **news-site-baseline.json** — first-party telemetry beacon
+- **news-site-baseline.json**. First-party telemetry beacon
   blocks, social-widget iframe removes, newsletter / cookie-
   banner overlay kills.
-- **social-media-declutter.json** — Reddit promoted-post
+- **social-media-declutter.json**. Reddit promoted-post
   removes, algorithmic community recommendation removes,
   Twitter/X trending hide rules.
 
-## Priority 2 — polish + specialized detection
+## Priority 2. Polish + specialized detection
 
 ### Crypto-mining heuristic
 
@@ -110,8 +110,8 @@ suggestion for the worker script origin.
 
 Brave's third-party storage partitioning handles the worst case
 (third-party iframes setting persistent IDs). First-party
-supercookies — the tab host itself writing a user ID to
-`localStorage` then exfiltrating it — still work.
+supercookies. The tab host itself writing a user ID to
+`localStorage` then exfiltrating it. Still work.
 
 **Detection**: hook `localStorage.setItem` /
 `sessionStorage.setItem` in main-world. Count unique keys per
@@ -122,7 +122,7 @@ origin that reads the key back.
 
 Hook `navigator.serviceWorker.register()` in `mainworld.js`.
 Report each registration with scope and script URL. Not
-automatically suspicious — surface as disclosure in a popup
+automatically suspicious. Surface as disclosure in a popup
 "Service Workers registered" panel. Lets the user see what's
 running in the background for a given site.
 
@@ -147,9 +147,9 @@ additions. Expected no regression. Needs local run outside k3s.
 Stage 4 performance budget is cold popup open < 100 ms. Verify
 in DevTools Performance. If over budget, prioritize the slow path.
 
-## Priority 3 — edge cases + drift cleanup
+## Priority 3. Edge cases + drift cleanup
 
-### `strip` action — per-site URL query param override
+### `strip` action. Per-site URL query param override
 
 Brave's curated global list covers `utm_source` / `gclid` /
 `fbclid` / `msclkid` etc. Per-site override matters only for
@@ -158,7 +158,7 @@ site-specific tracking params Brave doesn't know about. Rare.
 **Implementation**: new action type; DNR `redirect` +
 `transform.queryTransform.removeParams`.
 
-### `referrer` action — per-scope Referer rewriting
+### `referrer` action. Per-scope Referer rewriting
 
 Brave does global policy-level Referer reduction. Per-site
 override matters for paywall-debugging and referral-testing edge
@@ -170,12 +170,12 @@ cases. Rare.
 
 Brave has **two** layers of bounce-tracking defense already
 (curated debouncing list + filter lists). Long-tail value here
-is small — only useful for site-specific redirectors Brave
+is small. Only useful for site-specific redirectors Brave
 hasn't caught. Demoted from earlier P1 since the practical
 overlap with Brave's existing coverage makes this rarely fire in
 practice.
 
-### `replace` action — substitute scripts with no-op stubs
+### `replace` action. Substitute scripts with no-op stubs
 
 Brave does this for GA4 / Meta Pixel already. Per-site user-
 authored version would cover site-specific analytics Brave's
@@ -200,7 +200,7 @@ allow relocation without separately editing scope + action.
 ### Profile export: rule-subset picker
 
 Profile export currently dumps the whole config. Let the user
-pick a subset before export — by scope, by tag, or by action.
+pick a subset before export. By scope, by tag, or by action.
 
 ## Out of scope
 
