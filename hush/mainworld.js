@@ -31,7 +31,7 @@
   // Emitted-spoof-kinds dedup. Per-page: mainworld.js runs fresh on
   // every navigation, so the set resets naturally. One FirewallEvent
   // per (kind, page) keeps a busy fingerprinter from flooding the log
-  // — the popup cares that spoof FIRED, not that it fired 40x/second.
+  //. The popup cares that spoof FIRED, not that it fired 40x/second.
   const hushSpoofEmitted = new Set();
   function emitSpoofHit(kind) {
     if (hushSpoofEmitted.has(kind)) return;
@@ -40,7 +40,7 @@
       document.dispatchEvent(new CustomEvent("__hush_spoof_hit__", {
         detail: { kind: String(kind), t: new Date().toISOString() }
       }));
-    } catch (e) { /* ignore — detached document */ }
+    } catch (e) { /* ignore. Detached document */ }
   }
 
   // Check at call time whether the site has opted into spoofing a
@@ -85,7 +85,7 @@
     } catch (e) { return new Uint8Array(0); }
   })();
 
-  // Same dedup shape for neuter + silence — one event per
+  // Same dedup shape for neuter + silence. One event per
   // (type, origin, page). Each set is keyed by the matched origin
   // host so different replay vendors on the same page each get a
   // firewall-log row.
@@ -488,8 +488,8 @@
   // Canvas FP: toDataURL, toBlob.
   //
   // Detection emits a `canvas-fp` observation. Spoof (kind tag
-  // `canvas`): when opted in, both return constant bland bytes — a
-  // 1x1 transparent PNG — so the fingerprinter's hash is invariant
+  // `canvas`): when opted in, both return constant bland bytes. A
+  // 1x1 transparent PNG. So the fingerprinter's hash is invariant
   // across users. Opt-in per site since legitimate uses (image
   // resize, drawing tools, thumbnail export) would break.
   try {
@@ -671,12 +671,12 @@
   // Fingerprinters read many `navigator` / `screen` property
   // accessors in rapid succession; the combination uniquely
   // identifies 90%+ of browsers. Brave farbles the values (so
-  // they're safe) but silently — the user never learns which
+  // they're safe) but silently. The user never learns which
   // sites attempted to fingerprint them. Hush's value here is
   // the transparency layer: detect the reads, surface the
   // attempt, propose a block rule.
   //
-  // Properties list is surgical — layout-noisy accessors that
+  // Properties list is surgical. Layout-noisy accessors that
   // responsive-design code reads constantly (innerWidth /
   // innerHeight / devicePixelRatio / screen.width /
   // screen.height) are deliberately omitted. What stays is
@@ -728,7 +728,7 @@
   } catch (e) {}
   try {
     if (typeof Screen !== "undefined" && Screen.prototype) {
-      // Skip width/height/availWidth/availHeight — legit
+      // Skip width/height/availWidth/availHeight. Legit
       // layout code reads these. Keep the bits-per-channel
       // accessors which are pure fingerprint entropy.
       const screenProps = ["colorDepth", "pixelDepth"];
@@ -743,7 +743,7 @@
   // readText() is gesture-gated by Chrome but sites probe for it
   // and wrap paste events to sniff clipboard content for coupon
   // codes, competitor URLs, and tracking parameters. Any script
-  // that calls readText() is high-signal — legit uses are rare
+  // that calls readText() is high-signal. Legit uses are rare
   // and almost always initiated by a very explicit user action
   // (paste button on a password manager, clipboard inspector in
   // a dev tool). Emit a `clipboard-fp` observation so the
@@ -889,7 +889,7 @@
       } catch (e) {}
       // Neuter: deny listener registrations from matching script
       // origins. Runs before the real addEventListener so the
-      // listener never binds — no CPU burn, no capture, no exfil.
+      // listener never binds. No CPU burn, no capture, no exfil.
       // Applies to both interaction events (session-replay capture
       // surface) and attention events (engagement analytics /
       // session-replay dwell-time signals).
