@@ -148,7 +148,7 @@ use crate::suggestion::build_suggestion;
 /// to suppress block-origin suggestions when the user has already
 /// picked the spoof lane for the corresponding fingerprint signal.
 ///
-/// Only the fingerprint-vs-spoof relationships live here —
+/// Only the fingerprint-vs-spoof relationships live here.
 /// URL-layer equivalences (block covers neuter/silence) are structural
 /// and handled directly in `is_covered` without a map.
 pub(crate) fn spoof_kind_for_signal(signal_kind: &str) -> Option<&'static str> {
@@ -184,7 +184,7 @@ pub(crate) struct DetectCtx<'a> {
     pub existing_silence: Arc<[String]>,
     /// Enabled spoof kind tags from the merged config. Lets
     /// fingerprint detectors skip their block suggestions when the
-    /// equivalent spoof already neutralizes the signal — e.g. a
+    /// equivalent spoof already neutralizes the signal. E.g. a
     /// user with `spoof: ["webgl-unmasked"]` doesn't need another
     /// "block this origin" nag for every WebGL-hot read.
     pub existing_spoof: Arc<[String]>,
@@ -213,7 +213,7 @@ impl<'a> DetectCtx<'a> {
     /// Central cross-layer dedup predicate. Returns true if an
     /// enabled rule equivalent to the (layer, value, kind) triple
     /// already covers the signal the caller is about to emit as a
-    /// suggestion. One source of truth — adding a new equivalence
+    /// suggestion. One source of truth. Adding a new equivalence
     /// (e.g. "block covers remove-of-iframe") is a match-arm edit
     /// here instead of scattered per-detector ad-hoc checks.
     ///
@@ -225,7 +225,7 @@ impl<'a> DetectCtx<'a> {
     /// - Spoof covers the equivalent fingerprint-signal block
     ///   suggestion (webgl-fp-hot → `webgl-unmasked` spoof, etc.)
     ///   via [`spoof_kind_for_signal`].
-    /// - Remove / Hide cross-layer: not currently — those are DOM
+    /// - Remove / Hide cross-layer: not currently. Those are DOM
     ///   selectors, not URL filters; no dedup relationship to
     ///   network-layer actions.
     fn is_covered(&self, layer: SuggestionLayer, value: &str, kind: &str) -> bool {
@@ -247,7 +247,7 @@ impl<'a> DetectCtx<'a> {
         }
         // Cross-layer: matching spoof neutralizes the fingerprint
         // signal the block suggestion would otherwise target. Only
-        // applies to Block suggestions — spoof has no bearing on
+        // applies to Block suggestions. Spoof has no bearing on
         // DOM-selector (remove/hide) rules even if the detector
         // kind coincidentally lines up.
         if layer == SuggestionLayer::Block
@@ -262,7 +262,7 @@ impl<'a> DetectCtx<'a> {
     /// Build a suggestion if the triple isn't already covered.
     /// Detectors wrap pushes in `if let Some(s) = ctx.try_finish(...)`
     /// instead of re-implementing dedup at every call site. Single
-    /// source of truth — adding a new equivalence rule is an edit
+    /// source of truth. Adding a new equivalence rule is an edit
     /// in [`Self::is_covered`] and every detector benefits.
     fn try_finish(&self, input: BuildSuggestionInput) -> Option<Suggestion> {
         if self.is_covered(input.layer, &input.value, &input.kind) {
@@ -988,7 +988,7 @@ pub(crate) fn detect_from_js_calls(ctx: &DetectCtx, js_calls: &[JsCall]) -> Vec<
 
     // WebGL UNMASKED reads: the hot 95-confidence case.
     // Suppress when the user already has `webgl-unmasked` spoof
-    // active — the spoof neutralizes the exact signal (UNMASKED_
+    // active. The spoof neutralizes the exact signal (UNMASKED_
     // VENDOR/RENDERER return bland strings). The detector is
     // still OBSERVING the reads (that's what generates the signal
     // in the first place), but surfacing a new block-the-origin
@@ -1118,7 +1118,7 @@ pub(crate) fn detect_from_js_calls(ctx: &DetectCtx, js_calls: &[JsCall]) -> Vec<
     //
     // For Brave users the values are farbled (so blocking isn't
     // strictly necessary for defense), but surfacing the attempt
-    // still matters — the user learns which sites tried. For
+    // still matters. The user learns which sites tried. For
     // non-Brave users the block is real defense. Either way, the
     // suggestion shape is the same: Block the origin at confidence
     // 80.
@@ -1169,7 +1169,7 @@ pub(crate) fn detect_from_js_calls(ctx: &DetectCtx, js_calls: &[JsCall]) -> Vec<
 
     // Clipboard read: any call to navigator.clipboard.readText() from
     // a page script is high-signal. Chrome gesture-gates the API, so
-    // the site had to convince the user to interact first — but legit
+    // the site had to convince the user to interact first. But legit
     // page scripts almost never need it. One call is enough to emit
     // a block suggestion for the calling origin; confidence 95.
     if let Some(origins) = s.origins_by_kind.get("clipboard-fp") {
@@ -1192,12 +1192,12 @@ pub(crate) fn detect_from_js_calls(ctx: &DetectCtx, js_calls: &[JsCall]) -> Vec<
     // Attention-tracking: 4+ page-lifecycle / visibility listeners
     // from one origin with 3+ distinct event types in <60s. Threshold
     // tighter than the interaction-density detector because attention
-    // events are much rarer — a legit site attaches maybe one
+    // events are much rarer. A legit site attaches maybe one
     // `visibilitychange` to resume a video and one `beforeunload` to
     // warn on unsaved data. 4+ across 3+ types is session-replay /
     // engagement-analytics density, not normal page code.
     //
-    // Emits Neuter (same primitive as replay-listener) — the
+    // Emits Neuter (same primitive as replay-listener). The
     // main-world hook denies the registration so the capture path
     // never runs. Dedup against existing neuter or block rules for
     // the origin, mirroring replay-listener's is_covered check.
@@ -1231,17 +1231,17 @@ pub(crate) fn detect_from_js_calls(ctx: &DetectCtx, js_calls: &[JsCall]) -> Vec<
     }
 
     // Listener density: 12+ interaction listeners from one origin in <60s.
-    // Emits a `neuter` suggestion (not block) — neuter denies the
+    // Emits a `neuter` suggestion (not block). Neuter denies the
     // listener registrations upstream so no capture loop runs. The
     // rule's match value is the script-origin URL pattern, not the
-    // request URL — main-world enforcement checks the stack origin
+    // request URL. Main-world enforcement checks the stack origin
     // against it at addEventListener call time.
     //
     // Dedup: skip when the user already has a neuter OR block rule
     // covering this origin. Block is enough because a URL-blocked
     // script never runs, so no listeners can register in the first
     // place. Neuter is the exact primitive this suggestion proposes
-    // — duplicate suggestion is pure noise.
+    //. Duplicate suggestion is pure noise.
     for (origin, info) in &s.listener_types_by_origin {
         if info.count >= 12 && info.types.len() >= 3 && s.seconds_since_first < 60 {
             if origin.is_empty() {
@@ -1580,7 +1580,7 @@ mod tests {
         // Regression: after accepting the replay-listener
         // suggestion (which now lands a neuter rule for the
         // origin), the detector must not keep re-surfacing the
-        // same suggestion. Also covers the block-rule case — if
+        // same suggestion. Also covers the block-rule case. If
         // the user blocked the script URL entirely, the listeners
         // can't exist anyway.
         // Detector requires count >= 12 AND 3+ distinct types.
@@ -1620,7 +1620,7 @@ mod tests {
     #[test]
     fn webgl_fp_hot_suppressed_when_webgl_unmasked_spoof_active() {
         // When the user has `spoof: ["webgl-unmasked"]` enabled,
-        // the equivalent block suggestion should not surface —
+        // the equivalent block suggestion should not surface.
         // the spoof already neutralizes the exact signal.
         // Regression lock for the "spoof already active" nag case.
         let mut ctx = ctx("site.test");
@@ -1728,7 +1728,7 @@ mod tests {
 
     #[test]
     fn navigator_fp_below_threshold_no_suggestion() {
-        // 9 distinct properties — one below threshold.
+        // 9 distinct properties. One below threshold.
         let props = [
             "Navigator.userAgent",
             "Navigator.platform",
@@ -1896,7 +1896,7 @@ mod tests {
 
     #[test]
     fn attention_tracking_below_threshold_no_suggestion() {
-        // Only 3 listeners across 3 types — one short of the count
+        // Only 3 listeners across 3 types. One short of the count
         // threshold. Should not fire.
         let calls: Vec<JsCall> = ["visibilitychange", "focus", "blur"]
             .iter()
