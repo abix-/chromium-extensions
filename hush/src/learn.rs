@@ -59,7 +59,7 @@ impl LearnKind {
     }
 
     /// Canonical string tag for this kind. Inverse of
-    /// [`Self::from_tag`] — returns the form used in suggestion
+    /// [`Self::from_tag`]. Returns the form used in suggestion
     /// keys, main-world emit events, and `auto:<tag>` rule
     /// stamps. Must stay in sync with `from_tag`'s primary
     /// match arm for every variant.
