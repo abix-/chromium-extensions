@@ -1,0 +1,12 @@
+{
+  "name": "upit",
+  "version": "0.1.0",
+  "description": "Review Reddit posts in a side panel and cast the votes you pick (Chrome MV3)",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wasm-pack build --target web --out-dir dist/pkg --no-typescript",
+    "build:dev": "wasm-pack build --target web --out-dir dist/pkg --no-typescript --dev",
+    "test:rust": "cargo test"
+  }
+}

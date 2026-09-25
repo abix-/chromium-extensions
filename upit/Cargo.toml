@@ -1,0 +1,51 @@
+[package]
+name = "upit"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+license = "GPL-3.0-or-later"
+authors = ["abix <abix85@gmail.com>"]
+repository = "https://github.com/abix-/chromium-extensions"
+description = "Review Reddit posts in a side panel and cast the votes you pick (Chrome MV3). Rust/WASM + Leptos."
+
+[lib]
+# wasm-pack --target web needs cdylib. rlib is kept so cargo test can
+# exercise the pure-Rust code without going through wasm.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde-wasm-bindgen = "0.6"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+leptos = { version = "0.8", features = ["csr"] }
+web-sys = { version = "0.3", features = [
+    "Crypto",
+    "Window",
+    "Document",
+    "Element",
+    "HtmlElement",
+    "console",
+] }
+console_error_panic_hook = { version = "0.1", optional = true }
+
+[features]
+default = ["panic-hook"]
+panic-hook = ["dep:console_error_panic_hook"]
+
+# Same reason as hush: wasm-pack 0.14's bundled wasm-opt can't validate
+# rustc 1.95's `i64.trunc_sat_f64_s`.
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = "symbols"
+panic = "abort"
+debug = false
