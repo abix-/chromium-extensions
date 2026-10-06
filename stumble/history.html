@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Stumble history</title>
+  <style>
+    body { font: 14px system-ui, sans-serif; max-width: 960px; margin: 24px auto; padding: 0 16px; }
+    .entry { display: flex; gap: 16px; padding: 12px 0; border-bottom: 1px solid #ddd; }
+    .entry img { width: 196px; height: 110px; object-fit: cover; border-radius: 8px; flex: none; }
+    .site { width: 196px; height: 110px; border-radius: 8px; flex: none; display: flex; align-items: center; justify-content: center;
+            background: #eee; color: #555; font-weight: 600; text-align: center; overflow-wrap: anywhere; padding: 8px; box-sizing: border-box; }
+    .title { font-weight: 600; font-size: 15px; }
+    .muted { color: #777; }
+    .rate button { margin-right: 6px; padding: 4px 10px; border-radius: 14px; border: 1px solid #aaa; background: #fff; cursor: pointer; }
+    .rate button.on { background: #2a6; color: #fff; border-color: #2a6; }
+    .rate button.on.skip { background: #b33; border-color: #b33; }
+  </style>
+</head>
+<body>
+  <h1>Stumble history</h1>
+  <p id="count" class="muted"></p>
+  <div id="list"></div>
+  <script type="module" src="history.js"></script>
+</body>
+</html>

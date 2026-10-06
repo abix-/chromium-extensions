@@ -1,0 +1,78 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Stumble</title>
+  <style>
+    body { font: 14px system-ui, sans-serif; max-width: 760px; margin: 24px auto; padding: 0 16px; }
+    section { margin-bottom: 28px; }
+    .row { display: flex; align-items: center; gap: 12px; }
+    input[type=range] { width: 320px; }
+    .mix input[type=range] { width: 160px; }
+    .mix td { padding: 6px 12px 6px 0; vertical-align: middle; }
+    .mix td[data-pct] { width: 110px; }
+    .cols { display: flex; gap: 32px; }
+    ol { padding-left: 24px; margin: 4px 0; }
+    .muted { color: #777; }
+  </style>
+</head>
+<body>
+  <h1>Stumble</h1>
+
+  <section>
+    <h2>Learn</h2>
+    <p>Reads your whole YouTube watch history and your subscriptions, then your Prime Video watch history, from this Chrome, and works out what you like. Nothing leaves this computer.
+       Press it again whenever your taste has moved on. Your likes and skips are kept.</p>
+    <div class="row"><button id="learn">Learn</button> <span id="learnStatus"></span></div>
+  </section>
+
+  <section>
+    <h2>Mix</h2>
+    <p class="muted">Tick a source to use it. Its slider sets how much of the mix it gets; the share is the part of your presses that works out to.
+       The boxes on the right only filter inside their own source.</p>
+    <table class="mix">
+      <tr data-source="youtube">
+        <td><label><input type="checkbox" data-on> YouTube</label></td>
+        <td><input type="range" data-share min="0" max="100" step="5"></td>
+        <td class="muted" data-pct></td>
+        <td>
+          <label><input type="checkbox" data-form="video"> Videos</label>
+          <label><input type="checkbox" data-form="short"> Shorts</label>
+          <label><input type="checkbox" data-form="live"> Live streams</label>
+        </td>
+      </tr>
+      <tr data-source="web">
+        <td><label><input type="checkbox" data-on> Websites</label></td>
+        <td><input type="range" data-share min="0" max="100" step="5"></td>
+        <td class="muted" data-pct></td>
+        <td>
+          <label><input type="checkbox" data-form="page"> Websites and blogs</label>
+          <label><input type="checkbox" data-form="comic"> Webcomics</label>
+          <label><input type="checkbox" data-form="code"> GitHub projects</label>
+        </td>
+      </tr>
+    </table>
+    <p class="muted">Websites come from Kagi Small Web, StumbleUponAwesome and Marginalia's random sites.</p>
+    <div class="row">
+      <span>What I like</span>
+      <input type="range" id="surprise" min="0" max="100" step="5">
+      <span>Surprise me</span>
+      <span id="surpriseValue" class="muted"></span>
+    </div>
+    <p class="muted">Surprise works inside whichever source a press picks: familiar things versus discovery.</p>
+  </section>
+
+  <section>
+    <h2>What it learned</h2>
+    <p id="summary" class="muted">Nothing yet. Press Learn.</p>
+    <p id="primeSummary" class="muted"></p>
+    <div class="cols">
+      <div><h3>Top channels</h3><ol id="channels"></ol></div>
+      <div><h3>Top topics</h3><ol id="topics"></ol></div>
+    </div>
+  </section>
+
+  <p><a href="history.html">Stumble history</a></p>
+  <script type="module" src="options.js"></script>
+</body>
+</html>
